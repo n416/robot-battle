@@ -95,7 +95,7 @@ function newGame() {
   const myHand = hand(), cpuHand = hand();
   const cpu = bestDesign(cpuHand, pilots[1], S.persona);
   S.g = { hand: [...myHand.head, ...myHand.upper, ...myHand.lower], myHandOrig: myHand, pilot: pilots[0], robots: [{}, {}, {}], pilotAt: null,
-          cpuPilot: pilots[1], cpu, cpuSt: cpu.st, myUsed: [], cpuUsed: [], round: 0, score: [0, 0], results: [], sel: null, target: 0, arming: false, dealt: false };
+          cpuPilot: pilots[1], cpu, cpuSt: cpu.st, myUsed: [], cpuUsed: [], round: 0, score: [0, 0], results: [], sel: null, target: 0, dealt: false };
   bayAnim = [0, 1, 2].map(() => ({ drop: {}, paint: null, painted: false }));
   S.phase = 'design';
 }
@@ -121,6 +121,7 @@ function myBayView(k) {
     if (!r.head && !r.upper && !r.lower) return null;
     const rig = rigFor(modelsOf(r), MY_SCHEMES[k]);
     const off = p => r[p] ? (1 - bounce(dropK(A.drop[p]))) * 1.3 : 0;
+    rig.pose({ aim: .12 + Math.sin(performance.now() / 900 + k) * .04, aimL: .05 });   // (first: it sets the upper body's height)
     if (rig.parts.lower) rig.parts.lower.position.y = off('lower');
     rig.upperPivot.position.y = rig.base.up + off('upper');
     rig.headPivot.position.y = rig.base.head + off('head') - (rig.parts.upper ? 0 : 0);
@@ -128,7 +129,6 @@ function myBayView(k) {
     if (complete && A.paint) { const t = Math.min(1, (performance.now() - A.paint) / 1500); rig.setPaint(t); rig.setLights(t >= 1); if (t >= 1) A.painted = true; }
     else if (complete && A.painted) { rig.setPaint(1); rig.setLights(true); }
     else { rig.setPaint(0); rig.setLights(false); }
-    rig.pose({ aim: .12 + Math.sin(performance.now() / 900 + k) * .04, aimL: .05 });
     return { rig, yaw: -.5 + Math.sin(performance.now() / 2200 + k * 2) * .55 };
   };
 }
@@ -176,10 +176,9 @@ document.addEventListener('click', async e => {
   if (S.phase === 'design') {
     if (b.dataset.card) { await placeCard(b.dataset.card, null, b); return; }
     if (b.dataset.unplace) { e.stopPropagation(); const [k, p] = b.dataset.unplace.split(':'); unplace(+k, p); SFX.play('clamp_2', { vol: .5, rate: .8 }); render(); return; }
-    if (b.id === 'pilotCard') { g.arming = !g.arming; SFX.tone(g.arming ? 880 : 440, .08, { type: 'triangle' }); render(); return; }
+    if (b.dataset.board !== undefined) { e.stopPropagation(); const k = +b.dataset.board; if (g.pilotAt === k) { g.pilotAt = null; SFX.play('saberoff_1', { vol: .4 }); render(); } else await boardPilot(k); return; }
     if (b.dataset.bay !== undefined) {
       const k = +b.dataset.bay;
-      if (g.arming) { await boardPilot(k); return; }
       g.target = k; SFX.tone(660, .05, { type: 'triangle', vol: .08 }); render(); return;
     }
     if (b.id === 'autoBtn') { await autoDesign(); return; }
@@ -311,7 +310,7 @@ function unplace(k, part) {
 }
 async function boardPilot(k) {
   const g = S.g;
-  g.pilotAt = k; g.arming = false;
+  g.pilotAt = k;
   render();
   SFX.play('techcome_1', { vol: .6 }); SFX.play('clamp_1', { delay: .3 });
   FX.cutin({ side: 'left', face: MY_FACE, title: `ロボット${k + 1}に搭乗！`, text: `${SNAME[g.pilot]}+1 ― ${pick(['よし、行けるぞ！', '頼むぞ、相棒！', 'この機体で勝つ！'])}`, cls: 'me', ms: 1100 });
@@ -425,8 +424,17 @@ function revealFx() {
 // ---------- render ----------
 const stars = v => '★'.repeat(v) + '<span style="opacity:.25">' + '★'.repeat(3 - v) + '</span>';
 const cardHTML = (c, dealt) => `<button type="button" class="pcard r${c.v}" data-card="${c.id}" aria-label="${c.m} ${PNAME[c.part]} ${c.v}"><span class="mk ${c.m}">${c.m}</span>${ROBO ? `<img src="${ROBO.thumb(modelOf(c), c.part)}" alt="">` : ''}<span class="v">${c.v}</span><span class="stars">${stars(c.v)}</span><span class="pt">${PNAME[c.part]}・${SNAME[c.part]}</span></button>`;
-function statHTML(s) {
-  return `<div class="stats">${[['索敵', 's'], ['攻撃', 'a'], ['防御', 'd']].map(([n, k]) => `<div class="stat ${k}"><span>${n}</span><b>${s ? s[k] : '−'}</b></div>`).join('')}</div>`;
+const STAT_OF = { head: 's', upper: 'a', lower: 'd' };
+function statHTML(s, pilot) {
+  return `<div class="stats">${[['索敵', 's'], ['攻撃', 'a'], ['防御', 'd']].map(([n, k]) => { const up = pilot && STAT_OF[pilot] === k;
+    return `<div class="stat ${k} ${up ? 'boost' : ''}"><span>${n}</span><b>${s ? s[k] : '−'}</b>${up ? '<i class="plus">+1</i>' : ''}</div>`; }).join('')}</div>`;
+}
+// the pilot's seat in each robot: tap to put the pilot in (showing what goes up), tap again to take them out
+function seatHTML(r, k) {
+  const g = S.g, on = g.pilotAt === k, key = STAT_OF[g.pilot], base = stats(r, null);
+  const gain = base ? `${SNAME[g.pilot]} ${base[key]}→<b>${base[key] + 1}</b>` : `${SNAME[g.pilot]} +1`;
+  if (on) return `<button type="button" class="seat on" data-board="${k}"><img src="${MY_FACE}" alt=""><span>搭乗中<small>${SNAME[g.pilot]}+1　タップで降りる</small></span></button>`;
+  return `<button type="button" class="seat ${g.pilotAt === null ? 'free' : ''}" data-board="${k}"><img src="${MY_FACE}" alt=""><span>${g.pilotAt === null ? 'ここに乗せる' : 'ここに乗り換える'}<small>${gain}</small></span></button>`;
 }
 function slotsHTML(r, k, editable) {
   return `<div class="slots">${PARTS.map(p => { const c = r[p]; if (!c) return `<div class="slotPip"><span class="pn">${PNAME[p]}</span>：空き</div>`;
@@ -448,14 +456,15 @@ function render() {
   for (const k in views) if (k !== 'title') delete views[k];
   if (S.phase === 'design') {
     const st = mySt();
-    $('msg').innerHTML = g.arming ? '<b>搭乗</b>パイロットを乗せるロボットをタップ！' : `<b>設計</b>カードをタップ → 光っているロボットに装着。ロボットをタップで装着先を切りかえ。装着した部位をタップで外す。`;
+    $('msg').innerHTML = !g.hand.length && g.pilotAt === null ? `<b>搭乗</b>最後にパイロットを乗せよう。パイロットは<b>${SNAME[g.pilot]}</b>が得意：乗せたロボットの${SNAME[g.pilot]}が+1。各ロボットの「ここに乗せる」を押す。`
+      : `<b>設計</b>カードをタップ → 光っているロボットに装着。ロボットをタップで装着先を切りかえ。装着した部位をタップで外す。パイロットは各ロボットの「ここに乗せる」で搭乗。`;
     const handCards = PARTS.flatMap(p => g.hand.filter(c => c.part === p));
-    const pilotCard = g.pilotAt === null ? `<button type="button" class="pcard pilot ${g.arming ? 'armed' : ''}" id="pilotCard"><span class="mk">PILOT</span><img src="${MY_FACE}" alt=""><span class="pt">${PNAME[g.pilot]}が得意<br>${SNAME[g.pilot]}+1<br>${g.arming ? '乗せる機体をタップ' : 'タップして搭乗'}</span></button>` : '';
+    const pilotCard = g.pilotAt === null ? `<div class="pcard pilot" id="pilotCard"><span class="mk">PILOT</span><img src="${MY_FACE}" alt=""><span class="pt">${SNAME[g.pilot]}が得意<br>乗せた機体の${SNAME[g.pilot]}+1<br>↑ 各ロボットの<br>「ここに乗せる」</span></div>` : '';
     main.innerHTML = `
       <section class="panel"><h2>格納庫 <span class="sub">3部位を同じメーカーでそろえると全能力+1</span></h2>
-        <div class="bays">${g.robots.map((r, k) => `<div class="bay ${k === g.target && !g.arming ? 'target' : ''} ${g.arming ? 'boardable' : ''}" data-bay="${k}" role="button" tabindex="0">
+        <div class="bays">${g.robots.map((r, k) => `<div class="bay ${k === g.target ? 'target' : ''}" data-bay="${k}" role="button" tabindex="0">
           <div class="bayHead"><span class="no">ROBOT ${k + 1}</span>${g.pilotAt === k ? '<span class="tag pilot">搭乗中</span>' : ''}</div>
-          ${viewCanvas(myBayView(k))}${slotsHTML(r, k, true)}${statHTML(st[k])}${tagsHTML(r, st[k], { pilot: g.pilotAt === k ? g.pilot : null })}</div>`).join('')}</div></section>
+          ${viewCanvas(myBayView(k))}${slotsHTML(r, k, true)}${statHTML(st[k], g.pilotAt === k ? g.pilot : null)}${seatHTML(r, k)}${tagsHTML(r, st[k], {})}</div>`).join('')}</div></section>
       <section class="panel handWrap"><h2>手札 <span class="sub">頭＝索敵　上半身＝攻撃（武器つき）　下半身＝防御</span></h2>
         <div class="hand">${handCards.map(c => cardHTML(c)).join('')}${pilotCard}</div>
         <div class="actions"><button type="button" class="bigBtn ${designDone() ? 'go' : ''}" id="designBtn" ${designDone() ? '' : 'disabled'}>設計完了！</button><button type="button" class="subBtn" id="autoBtn">おまかせ設計</button><button type="button" class="subBtn" id="resetBtn">やり直す</button>

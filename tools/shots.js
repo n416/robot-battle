@@ -15,11 +15,13 @@
     vs: async () => { $('#startBtn').click(); await sl(at || 1200); },
     deal: async () => { await start(); await sl(at || 5600); },
     hangar: async () => { await toHangar(); await sl(at || 3900); },
+    seats: async () => { await toHangar(); await sl(6500); $('.seat.on') && $('.seat.on').click(); await sl(at || 1600); },
     sortie: async () => { await toSortie(); $('[data-pick="0"]').click(); await sl(at || 900); },
     battle: async () => {
       await sl(300);
+      const u = new URLSearchParams(location.search).get('upper') || 'geo3';
       BATTLE.play({ title: '第1試合　1戦目',
-        me: { models: { head: 'geo3', upper: 'geo3', lower: 'geo3' }, scheme: 'tricolor', st: { s: 4, a: 4, d: 3 }, face: 'faces/face01.webp', name: 'あなた', label: 'ROBOT 1（最強）', weapon: 'ビームライフル', line: 'いっけぇーっ！' },
+        me: { models: { head: 'geo3', upper: u, lower: 'geo3' }, scheme: 'tricolor', st: { s: 4, a: 4, d: 3 }, face: 'faces/face01.webp', name: 'あなた', label: 'ROBOT 1（最強）', weapon: 'ビームライフル', line: 'いっけぇーっ！' },
         cpu: { models: { head: 'tsui2', upper: 'tsui2', lower: 'tsui2' }, scheme: 'crimson', st: { s: 2, a: 3, d: 2 }, face: 'faces/face05.webp', name: 'カイ', label: '機体A（中堅）', weapon: 'ジャイアントバズ', line: '負けないよ！' },
         flow: { r: 1, first: 'me', steps: [{ by: 'me', hit: true }] } });
       await sl(at || 9000);

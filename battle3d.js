@@ -251,8 +251,8 @@ window.BATTLE = (() => {
     };
     const A = { me: mk('me', sp.me), cpu: mk('cpu', sp.cpu) };
     const team = { me: '#5ff0ff', cpu: '#ff5a6e' };
-    const pose = { me: { aim: 0, aimL: 0, lean: 0, twist: 0 }, cpu: { aim: 0, aimL: 0, lean: 0, twist: 0 } };
-    const idle = (dt, t) => { for (const k of ['me', 'cpu']) { const p = pose[k], r = A[k]; if (r.dead) continue; r.pose({ ...p, bob: Math.sin(t * 2.2 + (k === 'me' ? 0 : 1.3)) * .008 }); } };
+    const pose = { me: { aim: 0, aimL: 0, lean: 0, twist: 0, crouch: 0, stride: 0, kneel: 0 }, cpu: { aim: 0, aimL: 0, lean: 0, twist: 0, crouch: 0, stride: 0, kneel: 0 } };
+    const idle = (dt, t) => { for (const k of ['me', 'cpu']) { const p = pose[k], r = A[k]; if (r.dead) continue; r.pose({ ...p, crouch: p.crouch + .05 + Math.sin(t * 2.2 + (k === 'me' ? 0 : 1.3)) * .03 }); } };
     tickers.add(idle);
     const other = k => k === 'me' ? 'cpu' : 'me';
     const facing = k => k === 'me' ? 1 : -1;
@@ -266,9 +266,9 @@ window.BATTLE = (() => {
     const thrusters = (dt) => { for (const k of ['me', 'cpu']) { const r = A[k]; if (r.root.position.y > .02) { const p = r.root.position.clone(); sprite({ pos: p.clone().add(V(rnd(-.08, .08), .05, rnd(-.08, .08))), vel: V(0, -3, 0), size: .28, size1: .05, life: .25, color: team[k] }); sprite({ pos: p.clone().add(V(0, .1, 0)), size: .5, life: .05, color: '#ffffff', alpha: .5 }); } } };
     tickers.add(thrusters);
     SFX.play('jet_1', { vol: .5 });
-    await Promise.all(['me', 'cpu'].map((k, i) => wait(i * 250).then(() => tween(1300, e => { A[k].root.position.y = 7 * (1 - e); pose[k].lean = .25 * (1 - e); pose[k].aimL = .5 * (1 - e); }, ease.out)).then(() => {
+    await Promise.all(['me', 'cpu'].map((k, i) => wait(i * 250).then(() => tween(1300, e => { A[k].root.position.y = 7 * (1 - e); pose[k].lean = .25 * (1 - e); pose[k].aimL = .5 * (1 - e); pose[k].crouch = .55 * (1 - e); pose[k].stride = .35 * (1 - e); }, ease.out)).then(() => {
       A[k].root.position.y = 0; dust(A[k].root.position.clone()); groundRing(A[k].root.position.clone().setY(.03), team[k], 2.2, .5); shake(.1, 350); SFX.play('impact_1', { vol: .8, pan: facing(k) * -.5 });
-      return tween(220, e => (pose[k].lean = .2 * Math.sin(e * Math.PI)));
+      return tween(140, e => { pose[k].crouch = e; pose[k].lean = .25 * e; }, ease.out).then(() => tween(520, e => { pose[k].crouch = 1 - e; pose[k].lean = .25 * (1 - e); }, ease.io));
     })));
     tickers.delete(thrusters);
     FX.cutin({ side: 'left', face: sp.me.face, title: sp.me.name, text: sp.me.line, cls: 'me', ms: 1200 });
@@ -305,12 +305,12 @@ window.BATTLE = (() => {
         const x0 = r.root.position.x, x1 = A[t].root.position.x - f * .75;
         SFX.play('thrust_1');
         cam2(V((x0 + x1) / 2, 1.0, 2.4), V(A[t].root.position.x, .6, 0), 300);
-        await tween(300, e => { r.root.position.x = x0 + (x1 - x0) * e; sprite({ pos: r.root.position.clone().add(V(-f * .2, .5, 0)), vel: V(-f * 3, 0, 0), size: .3, size1: .05, life: .2, color: team[k] }); }, ease.in);
+        await tween(300, e => { r.root.position.x = x0 + (x1 - x0) * e; pose[k].stride = Math.sin(e * Math.PI * 2) * .9; pose[k].crouch = .25; sprite({ pos: r.root.position.clone().add(V(-f * .2, .5, 0)), vel: V(-f * 3, 0, 0), size: .3, size1: .05, life: .2, color: team[k] }); }, ease.in);
         SFX.play('swing_1');
-        await tween(140, e => { pose[k].aim = 1.6 - 1.9 * e; pose[k].lean = .3 * e; });
+        await tween(140, e => { pose[k].aim = 1.6 - 1.9 * e; pose[k].lean = .3 * e; pose[k].stride = .9 * e; pose[k].crouch = .25 + .3 * e; });
         slashArc(tgt.clone().add(V(-f * .15, .1, 0)), f > 0 ? 0 : Math.PI, '#ff8a3a');
         await impact(k, t, hit, kind, label);
-        await tween(350, e => { r.root.position.x = x1 + (x0 - x1) * e; pose[k].aim = -.3 * (1 - e); pose[k].lean = .3 * (1 - e); });
+        await tween(350, e => { r.root.position.x = x1 + (x0 - x1) * e; pose[k].aim = -.3 * (1 - e); pose[k].lean = .3 * (1 - e); pose[k].stride = -.6 * Math.sin(e * Math.PI) + .9 * (1 - e) * (e < .2 ? 1 : 0); pose[k].crouch = .55 * (1 - e); });
         return;
       }
       await tween(330, e => { pose[k].aim = e; pose[k].twist = -f * .0 * e; });
@@ -343,7 +343,7 @@ window.BATTLE = (() => {
       } else if (kind === 'shell') {
         SFX.play('rocket_1');
         const from = mz(); sprite({ pos: from, size: .6, size1: 1.3, life: .25, color: '#ffb040' }); dust(from.clone().add(V(-f * .3, 0, 0)), 5);
-        tween(160, e => { pose[k].aim = 1 + .3 * Math.sin(e * Math.PI); pose[k].lean = -.2 * Math.sin(e * Math.PI); });
+        tween(420, e => { const b = Math.sin(Math.min(1, e * 2.6) * Math.PI) * (e < .38 ? 1 : 0) + (e >= .38 ? (1 - e) / .62 * .5 : 0); pose[k].aim = 1 + .3 * Math.sin(Math.min(1, e * 2.6) * Math.PI); pose[k].lean = -.2 * b; pose[k].crouch = .45 * b; pose[k].stride = -.3 * b; });
         cam2(V(0, 1.0, 2.6), tgt, 380);
         await projectile(from, hit ? tgt : tgt.clone().add(V(-f * .6, 0, 0)), 380, { r: .07, stretch: 2, color: '#ffc060', glow: .5, smoke: true });
       } else if (kind === 'missile') {
@@ -367,7 +367,7 @@ window.BATTLE = (() => {
         FX.flash('#fff', 220, .55); FX.shake(14, 450);
         FX.stamp('HIT!!', { cls: k === 'me' ? 'gold' : 'red', sub: label, ms: 900 });
         await wait(70); timeScale = base();
-        tween(500, e => { A[t].flash(1.1 * (1 - e)); pose[t].lean = .45 * Math.sin(e * Math.PI) * (1 - e * .5); A[t].root.position.x += f * .004; });
+        tween(500, e => { A[t].flash(1.1 * (1 - e)); pose[t].lean = .45 * Math.sin(e * Math.PI) * (1 - e * .5); pose[t].crouch = .6 * Math.sin(e * Math.PI); pose[t].stride = -.35 * Math.sin(e * Math.PI); A[t].root.position.x += f * .004; });
         await wait(600);
       } else {
         const sp2 = A[t].root.position.clone().add(V(-f * .55, .6, 0));
@@ -375,7 +375,7 @@ window.BATTLE = (() => {
         sparksAt(sp2, team[t], 26, V(-f, .3, 0));
         SFX.play('impact_2', { vol: .9 }); SFX.play('clamp_2', { vol: .7 });
         FX.stamp('GUARD!', { cls: 'blue', sub: label, ms: 900 }); shake(.06, 250);
-        tween(250, e => (pose[t].aimL = .9 * Math.sin(e * Math.PI)));
+        tween(420, e => { pose[t].aimL = .9 * Math.sin(e * Math.PI); pose[t].crouch = .35 * Math.sin(e * Math.PI); });
         await wait(950);
       }
       hl(k + 'a', false); hl(t + 'd', false);
@@ -403,12 +403,13 @@ window.BATTLE = (() => {
       L.dead = true; L.burn(1); L.flash(0);
       // the head flies off
       const head = L.headPivot, hv = V(rnd(-.8, .8) + facing(winner) * 1.6, 4.5, rnd(-1, 1)), hs = V(rnd(-9, 9), rnd(-9, 9), rnd(-9, 9));
-      const hw = new THREE.Vector3(); head.getWorldPosition(hw); scene.attach(head);
+      const hw = new THREE.Vector3(); head.getWorldPosition(hw); scene.attach(head); L.headGone = true;
       const fall = dt => { if (head.position.y > .05) { hv.y -= 9.8 * dt; head.position.addScaledVector(hv, dt); head.rotation.x += hs.x * dt; head.rotation.y += hs.y * dt; sprite({ pos: head.position, size: .2, size1: .5, life: .5, color: '#3a3036', normal: true, alpha: .6, tex: TEX.smoke }); } else if (!fall.done) { fall.done = true; head.position.y = .05; sparksAt(head.position.clone(), '#ffb040', 12); SFX.play('impact_2', { vol: .6 }); } };
       tickers.add(fall);
       const smoke = dt => { if (Math.random() < dt * 30) sprite({ pos: lp.clone().add(V(rnd(-.25, .25), rnd(.3, .6), rnd(-.25, .25))), vel: V(rnd(-.1, .1), rnd(.6, 1.2), rnd(-.1, .1)), size: .3, size1: 1.4, life: 2.2, color: '#1e1a1e', normal: true, alpha: .6, tex: TEX.smoke, fadeIn: .1 }); if (Math.random() < dt * 8) sprite({ pos: lp.clone().add(V(rnd(-.2, .2), rnd(.2, .7), rnd(-.2, .2))), vel: V(0, rnd(.3, .8), 0), size: .2, size1: .5, life: .5, color: '#ff8a2a' }); };
       tickers.add(smoke);
-      await tween(900, e => { L.body.rotation.z = facing(loser) * -1 * 0; L.body.rotation.x = 1.35 * ease.in(e); L.body.position.y = -.05 * e; });
+      await tween(450, e => L.pose({ crouch: .3 * (1 - e), kneel: e, lean: .35 * e }), ease.out);
+      await tween(700, e => { L.pose({ kneel: 1, lean: .35 + .4 * e }); L.body.rotation.x = 1.1 * ease.in(e); L.body.position.y = -.08 * e; });
       dust(lp.clone(), 18); SFX.play('impact_1', { vol: 1, rate: .7 }); shake(.15, 400);
       timeScale = base();
       await wait(400);

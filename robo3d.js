@@ -33,6 +33,7 @@ window.ROBO = (() => {
       for (let i = 0; i < c8.length; i++) col[i] = srgbToLin(c8[i] / 255);
       g.setAttribute('color', new THREE.BufferAttribute(col, 3));
       g.setIndex(new THREE.BufferAttribute(sub.big ? new Uint32Array(bytes(sub.i)) : new Uint16Array(bytes(sub.i)), 1));
+      if (sub.sj) { g.setAttribute('skinIndex', new THREE.BufferAttribute(new Uint8Array(bytes(sub.sj)), 4)); g.setAttribute('skinWeight', new THREE.BufferAttribute(new Uint8Array(bytes(sub.sw)), 4, true)); }
       g.computeBoundingSphere();
       return { g, glow: sub.glow, slot: sub.s && new Uint8Array(bytes(sub.s)), shade: sub.h && new Uint8Array(bytes(sub.h)), zone: sub.z && new Uint8Array(bytes(sub.z)), paints: {} };
     });
@@ -101,7 +102,7 @@ window.ROBO = (() => {
       const J = m => M[m].joints;
       const waist = models.lower ? J(models.lower).torso : [0, .72, 0];
       if (models.lower) { this.parts.lower = this.meshes(models.lower, 'lower'); body.add(this.parts.lower); }
-      this.upperPivot = new THREE.Group(); this.upperPivot.position.set(...waist); body.add(this.upperPivot);
+      this.upperPivot = new THREE.Group(); this.upperPivot.position.set(...waist); body.add(this.upperPivot); this.upBase = waist[1];
       let neck = [0, .907 - waist[1], 0];
       if (models.upper) {
         const u = models.upper, t = J(u).torso;
@@ -146,11 +147,14 @@ window.ROBO = (() => {
     meshes(model, part) {
       const grp = new THREE.Group();
       const glowCol = this.scheme ? lin(SCHEMES[this.scheme].glow) : new THREE.Color(...M[model].glow);
+      // the lower body bends: its bones (in the stance it was cut in) and skinned meshes
+      const skel = part === 'lower' && M[model].bones ? this.legSkeleton(model, grp) : null;
+      const add = (geo, mat) => { const m = skel ? new THREE.SkinnedMesh(geo, mat) : new THREE.Mesh(geo, mat); if (skel) { m.bind(skel, new THREE.Matrix4()); m.frustumCulled = false; } grp.add(m); return m; };
       pieces(model, part).forEach(pc => {
         if (pc.glow) {
-          const gm = new THREE.MeshBasicMaterial({ color: glowCol.clone().multiplyScalar(1.4), toneMapped: false });
+          const gm = new THREE.MeshBasicMaterial({ color: glowCol.clone().multiplyScalar(1.4), toneMapped: false, skinning: !!skel });
           gm.userData.orig = new THREE.Color(...M[model].glow).multiplyScalar(1.4);
-          this.glowMats.push(gm); grp.add(new THREE.Mesh(pc.g, gm)); return;
+          this.glowMats.push(gm); add(pc.g, gm); return;
         }
         let g = pc.g;
         // a copy of the geometry with this rig's paint colours beside the bare ones
@@ -158,10 +162,44 @@ window.ROBO = (() => {
         for (const name in pc.g.attributes) g.setAttribute(name, pc.g.attributes[name]);
         g.index = pc.g.index; g.boundingSphere = pc.g.boundingSphere;
         g.setAttribute('paintColor', this.scheme ? paintAttr(pc, model, this.scheme) : pc.g.attributes.color);
-        const mesh = new THREE.Mesh(g, this.mat); mesh.castShadow = true;
-        grp.add(mesh);
+        if (skel && !this.matSkin) { this.matSkin = bodyMaterial(this.U); this.matSkin.skinning = true; }
+        const mesh = add(g, skel ? this.matSkin : this.mat); mesh.castShadow = true;
       });
       return grp;
+    }
+    legSkeleton(model, grp) {
+      const B = M[model].bones, bones = B.map(b => { const bn = new THREE.Bone(); bn.name = b.n; return bn; });
+      const world = B.map(b => new THREE.Matrix4().compose(new THREE.Vector3(...b.t), new THREE.Quaternion(...b.q), new THREE.Vector3(1, 1, 1)));
+      B.forEach((b, i) => {
+        const local = b.p < 0 ? world[i].clone() : new THREE.Matrix4().copy(world[b.p]).invert().multiply(world[i]);
+        local.decompose(bones[i].position, bones[i].quaternion, bones[i].scale);
+        (b.p < 0 ? grp : bones[b.p]).add(bones[i]);
+      });
+      grp.updateMatrixWorld(true);
+      const by = {}; bones.forEach(b => (by[b.name] = b));
+      const len = (a, b) => (by[a] && by[b] ? by[a].getWorldPosition(new THREE.Vector3()).distanceTo(by[b].getWorldPosition(new THREE.Vector3())) : .2);
+      this.leg = { by, rest: new Map(bones.map(b => [b, { q: b.quaternion.clone(), p: b.position.clone() }])), L1: (len('leg_l', 'shin_l') + len('leg_r', 'shin_r')) / 2, L2: (len('shin_l', 'foot_l') + len('shin_r', 'foot_r')) / 2 };
+      return new THREE.Skeleton(bones);
+    }
+    // the legs: crouch 0..1 bends both knees, stride -1..1 one leg forward and one back (a run / a lunge), kneel 0..1 goes
+    // down on the right knee. The feet stay flat and the lowest point (a foot or a knee) on the ground: the hips (and the upper body) come down.
+    legs({ crouch = 0, stride = 0, kneel = 0 } = {}) {
+      const L = this.leg; if (!L) return;
+      for (const [b, r] of L.rest) { b.quaternion.copy(r.q); b.position.copy(r.p); }
+      const a = crouch * .75;
+      const ang = { l: [a + stride * .8 + kneel * 1.25, -2 * a - Math.abs(stride) * .35 - kneel * 1.45], r: [a - stride * .55 - kneel * .25, -2 * a - Math.abs(stride) * .7 - kneel * 1.95] };
+      const qx = new THREE.Quaternion(), X = new THREE.Vector3(1, 0, 0);
+      let reach = 0;   // how far below the hips the lowest point (a foot or a knee) is
+      for (const s of ['l', 'r']) {
+        const [h, k] = ang[s], by = L.by;
+        const turn = (n, x) => { if (by[n] && x) by[n].quaternion.multiply(qx.setFromAxisAngle(X, x)); };
+        turn('leg_' + s, h); turn('shin_' + s, k); turn('knee_' + s, k / 2); turn('foot_' + s, -(h + k) * .9);
+        turn('skirt_front_' + s, Math.max(0, h) * .7); turn('skirt_back_' + s, Math.min(0, h) * .7);
+        reach = Math.max(reach, L.L1 * Math.cos(h), L.L1 * Math.cos(h) + L.L2 * Math.cos(h + k));
+      }
+      const drop = Math.max(0, L.L1 + L.L2 - reach);
+      const hips = L.by.hips; if (hips) hips.position.y -= drop;
+      this.upperPivot.position.y = this.upBase - drop;
     }
     // paint sweep: t 0..1 brings the paint line from the feet over the head
     setPaint(t) { this.U.uPaintY.value = t <= 0 ? -50 : t >= 1 ? 50 : (-.05 + t * 1.25) * this.root.scale.y + this.root.position.y; }
@@ -170,18 +208,19 @@ window.ROBO = (() => {
     flash(v, col) { this.U.uFlash.value = v; if (col) this.U.uFlashCol.value.set(col); }
     burn(v) { this.U.uBurn.value = v; }
     // aim: 0 arm hanging, 1 weapon level to the front
-    pose({ aim = 0, aimL = 0, lean = 0, twist = 0, look = 0, bob = 0, swing = 0 } = {}) {
+    pose({ aim = 0, aimL = 0, lean = 0, twist = 0, look = 0, bob = 0, swing = 0, crouch = 0, stride = 0, kneel = 0 } = {}) {
+      if (this.leg) this.legs({ crouch, stride, kneel });
       if (this.armR) {
         if (this.aimAxis) { this.armR.quaternion.setFromAxisAngle(this.aimAxis, this.aimAngle * aim); if (swing) this.armR.rotateX(swing); }
         else this.armR.rotation.set(aim * Math.PI / 2 + swing, 0, 0);
       }
       if (this.armL) { this.armL.rotation.set(aimL * Math.PI / 2.4, 0, .08 + aimL * .1); }
       this.upperPivot.rotation.set(lean, twist, 0);
-      this.headPivot.rotation.set(0, look, 0);
+      if (!this.headGone) this.headPivot.rotation.set(0, look, 0);   // (once blown off, it tumbles on its own)
       this.body.position.y = bob;
     }
     muzzleWorld(v = new THREE.Vector3()) { if (!this.muzzle) return this.root.getWorldPosition(v).add(new THREE.Vector3(0, .6, 0)); this.root.updateMatrixWorld(true); return this.muzzle.getWorldPosition(v); }
-    dispose() { this.root.traverse(o => { if (o.isMesh && o.geometry.getAttribute('paintColor')) o.geometry.dispose(); }); this.mat.dispose(); }
+    dispose() { this.root.traverse(o => { if (o.isMesh && o.geometry.getAttribute('paintColor')) o.geometry.dispose(); }); this.mat.dispose(); if (this.matSkin) this.matSkin.dispose(); }
   }
 
   // ---- the small renderer shared by every picture on the page

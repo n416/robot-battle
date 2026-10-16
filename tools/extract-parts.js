@@ -55,8 +55,8 @@ function invTranslation(m) { // inverse of an affine 4x4 (column-major) -> trans
 }
 const b64 = ta => Buffer.from(ta.buffer, ta.byteOffset, ta.byteLength).toString('base64');
 // one mesh piece: positions scaled by 1/H, normals as int8, colours as sRGB bytes, optional paint slot/shade/zone bytes
-function pack(P, N, C, cn, idx, H, extra) {
-  const map = new Map(), pos = [], nor = [], col = [], slot = [], shade = [], zone = [], ind = [];
+function pack(P, N, C, cn, idx, H, extra, skin) {
+  const map = new Map(), pos = [], nor = [], col = [], slot = [], shade = [], zone = [], ind = [], sj = [], sw = [];
   for (const v of idx) {
     if (!map.has(v)) {
       map.set(v, pos.length / 3);
@@ -64,6 +64,7 @@ function pack(P, N, C, cn, idx, H, extra) {
       nor.push(Math.round(N[v * 3] * 127), Math.round(N[v * 3 + 1] * 127), Math.round(N[v * 3 + 2] * 127));
       for (let c = 0; c < 3; c++) col.push(C ? toSrgbByte(C[v * cn + c]) : 150);
       if (extra) { const e = extra(v); slot.push(e[0]); shade.push(e[1]); zone.push(e[2]); }
+      if (skin) { const [jj, ww] = skin(v); sj.push(...jj); sw.push(...ww); }
     }
     ind.push(map.get(v));
   }
@@ -72,6 +73,7 @@ function pack(P, N, C, cn, idx, H, extra) {
   const q = !!extra;
   const o = { q, p: b64(q ? Int16Array.from(pos, v => Math.round(v * 16384)) : new Float32Array(pos)), n: b64(new Int8Array(nor)), c: b64(new Uint8Array(col)), i: b64(big ? new Uint32Array(ind) : new Uint16Array(ind)), big };
   if (extra) { o.s = b64(new Uint8Array(slot)); o.h = b64(new Uint8Array(shade)); o.z = b64(new Uint8Array(zone)); }
+  if (skin) { o.sj = b64(new Uint8Array(sj)); o.sw = b64(new Uint8Array(sw)); }
   return o;
 }
 
@@ -95,6 +97,8 @@ const norm3 = v => { const l = Math.hypot(...v) || 1; return v.map(x => x / l); 
 // The stance the XS stand in when shown off (ex-online client/src/models.ts STAND, the "Katoki" stance): legs out at the
 // hips with the toes turned out, chest up, chin in, arms a little out and forward, elbows bent. Left is -x.
 const STAND = { legs: 0.17, toes: 0.22, chest: 0.07, chin: 0.1, arm: 0.1, out: 0.24, elbow: 0.38 };
+// the bones of the lower body the game bends (hips first: the root)
+const LEG_BONES = ['hips', 'leg_l', 'knee_l', 'shin_l', 'foot_l', 'leg_r', 'knee_r', 'shin_r', 'foot_r', 'skirt_front_l', 'skirt_front_r', 'skirt_back_l', 'skirt_back_r'];
 const STAND_ROT = {
   leg_l: [0, STAND.toes, -STAND.legs], leg_r: [0, -STAND.toes, STAND.legs],
   foot_l: [0, 0, STAND.legs], foot_r: [0, 0, -STAND.legs],
@@ -176,13 +180,19 @@ for (const pair of pairs) {
   }
   const posedJoint = nm => { const i = nodeIdx(nm); if (i < 0) return null; const p = M4.pt(worldOf(i, true), [0, 0, 0]); return [p[0] / H, (p[1] - ground) / H, p[2] / H].map(v => +v.toFixed(4)); };
   // the right hand's turn (for the held weapon): quaternion of its posed world rotation
-  const handQ = (() => { const i = nodeIdx('hand_r'); if (i < 0) return null; const m = worldOf(i, true);
+  const quatOf = m => {
     const t = m[0] + m[5] + m[10]; let x, y, z, w;
     if (t > 0) { const s = 0.5 / Math.sqrt(t + 1); w = 0.25 / s; x = (m[6] - m[9]) * s; y = (m[8] - m[2]) * s; z = (m[1] - m[4]) * s; }
     else if (m[0] > m[5] && m[0] > m[10]) { const s = 2 * Math.sqrt(1 + m[0] - m[5] - m[10]); w = (m[6] - m[9]) / s; x = 0.25 * s; y = (m[4] + m[1]) / s; z = (m[8] + m[2]) / s; }
     else if (m[5] > m[10]) { const s = 2 * Math.sqrt(1 + m[5] - m[0] - m[10]); w = (m[8] - m[2]) / s; x = (m[4] + m[1]) / s; y = 0.25 * s; z = (m[9] + m[6]) / s; }
     else { const s = 2 * Math.sqrt(1 + m[10] - m[0] - m[5]); w = (m[1] - m[4]) / s; x = (m[8] + m[2]) / s; y = (m[9] + m[6]) / s; z = 0.25 * s; }
-    return [x, y, z, w].map(v => +v.toFixed(5)); })();
+    return [x, y, z, w].map(v => +v.toFixed(5)); };
+  const handQ = nodeIdx('hand_r') < 0 ? null : quatOf(worldOf(nodeIdx('hand_r'), true));
+  // the lower body keeps its bones (in the posed stance) so the game can bend the legs: each bone's parent in the list,
+  // place and turn; vertices weighted to bones off the list (the torso) go to the hips
+  const LEG = LEG_BONES.filter(n => nodeIdx(n) >= 0);
+  const bones = LEG.map(n => { const i = nodeIdx(n), m = worldOf(i, true); let par = parentOf[i]; while (par != null && !LEG.includes(j.nodes[par].name)) par = parentOf[par];
+    const t = M4.pt(m, [0, 0, 0]); return { n, p: par == null ? -1 : LEG.indexOf(j.nodes[par].name), t: [t[0] / H, (t[1] - ground) / H, t[2] / H].map(v => +v.toFixed(4)), q: quatOf(m) }; });
   const parts = { head: [], upper: [], armL: [], armR: [], lower: [] };
   let glow = null;
   for (const nodeName of ['xs_body', 'xs_glow_1']) {
@@ -210,9 +220,17 @@ for (const pair of pairs) {
       const part = ps[0] === ps[1] || ps[0] === ps[2] ? ps[0] : ps[1] === ps[2] ? ps[1] : ps[0];
       buckets[part].push(I[t], I[t + 1], I[t + 2]);
     }
+    const legOf = names.map(n => Math.max(0, LEG.indexOf(n)));
+    const skin = v => {
+      const jj = [0, 0, 0, 0], ww = [0, 0, 0, 0], acc4 = new Map();
+      for (let k = 0; k < 4; k++) { const w = W[v * 4 + k]; if (w > 0) { const b = legOf[J[v * 4 + k]]; acc4.set(b, (acc4.get(b) || 0) + w); } }
+      [...acc4].sort((a, b) => b[1] - a[1]).slice(0, 4).forEach(([b, w], k) => { jj[k] = b; ww[k] = Math.round(w * 255); });
+      const sum = ww.reduce((a, b) => a + b, 0); if (sum !== 255) ww[0] += 255 - sum;
+      return [jj, ww];
+    };
     for (const part of Object.keys(buckets)) {
       if (!buckets[part].length) continue;
-      const o = pack(P, N, C, cn, buckets[part], H, extra);
+      const o = pack(P, N, C, cn, buckets[part], H, extra, part === 'lower' ? skin : null);
       o.glow = isGlow;
       parts[part].push(o);
     }
@@ -225,7 +243,7 @@ for (const pair of pairs) {
   const xsIdx = j.nodes.findIndex(n => n.name === 'xs');
   for (const n of ['hand_r']) if (!jointPos[n]) { const i = j.nodes.findIndex(x => x.name === n); if (i >= 0) { const w = nodeWorld(i), r = xsIdx >= 0 && j.nodes[xsIdx].translation || [0, 0, 0]; jointPos[n] = w.map((v, c) => +((v) / H).toFixed(4)); } }
   const J0 = posedJoint;
-  result.mechs[name] = { base, H: +H.toFixed(4), joints: { hips: J0('hips'), torso: J0('torso'), head: J0('head'), arm_l: J0('arm_l'), arm_r: J0('arm_r'), hand_r: J0('hand_r'), hand_rq: handQ, forearm_l: J0('forearm_l') }, glow, parts };
+  result.mechs[name] = { base, H: +H.toFixed(4), joints: { hips: J0('hips'), torso: J0('torso'), head: J0('head'), arm_l: J0('arm_l'), arm_r: J0('arm_r'), hand_r: J0('hand_r'), hand_rq: handQ, forearm_l: J0('forearm_l') }, bones, glow, parts };
   console.log(name, file, 'H', H.toFixed(3), 'hand_r', J0('hand_r'), Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, v.length])), 'paint table', table.length);
 }
 fs.writeFileSync(out, '// generated by tools/extract-parts.js from ex-online public/models: XS bodies (xs_body + glow) posed in the STAND stance and split into parts, and held weapons\nwindow.ROBOT_PARTS = ' + JSON.stringify(result) + ';\n');
