@@ -128,11 +128,16 @@ window.BATTLE = (() => {
     if (ms <= 0) { cam.pos.copy(pos); cam.look.copy(look); if (fov) cam.fov = fov; return Promise.resolve(); }
     return tween(ms, k => { cam.pos.lerpVectors(p0, pos, k); cam.look.lerpVectors(l0, look, k); if (fov) cam.fov = f0 + (fov - f0) * k; }, e);
   }
+  // a tall screen (a phone held upright) sees about as much across as a 1.25:1 one would: the camera backs off a little and opens up
+  const WIDE = 1.25;
   function applyCam(dt) {
-    camera.position.copy(cam.pos);
+    const asp = camera.aspect, back = asp < WIDE ? Math.pow(WIDE / asp, .4) : 1;
+    camera.position.copy(cam.look).addScaledVector(cam.pos.clone().sub(cam.look), back);
     if (cam.shakeT > 0) { cam.shakeT -= dt; const a = cam.shakeAmp * Math.max(0, cam.shakeT) * 2; camera.position.add(V(rnd(-a, a), rnd(-a, a), rnd(-a, a))); if (cam.shakeT <= 0) cam.shakeAmp = 0; }
     camera.lookAt(cam.look);
-    if (camera.fov !== cam.fov) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
+    const half = Math.atan(Math.tan(cam.fov * Math.PI / 360) * WIDE / back / asp);
+    const fov = asp < WIDE ? Math.min(100, half * 360 / Math.PI) : cam.fov;
+    if (Math.abs(camera.fov - fov) > 1e-4) { camera.fov = fov; camera.updateProjectionMatrix(); }
   }
 
   // ---------- the arena (built once)

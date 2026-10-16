@@ -17,7 +17,7 @@ fs.writeFileSync(path.join(root, 'shots.html'), page);
     for (const s of scenes) {
       const [name, ms = 0] = s.split(':');
       const p = await browser.newPage();
-      await p.setViewport({ width: 1280, height: 800 });
+      await p.setViewport({ width: +process.env.W || 1280, height: +process.env.H || 800 });
       await p.goto(`http://localhost:${PORT}/shots.html?shot=${name}&at=${ms}`, { waitUntil: 'load' });
       await p.waitForFunction(() => document.title === 'FROZEN', { timeout: 90000 });
       const file = path.join(OUT, name + '.jpg');
