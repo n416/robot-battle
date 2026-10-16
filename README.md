@@ -2,31 +2,86 @@
 
 部位カードでロボットを3体組み、性格のあるCPUと3試合戦うカードゲームです。CPUは試合を重ねるうちに、こちらの出し方のクセも読んでくるようになります。
 
+- 遊ぶ：<https://n416.github.io/robot-battle/>
 - ルールの元：<https://github.com/n416/microtools/tree/main/robot>
-- 公開版：<https://claude.ai/artifact/PTa57xLJJuXp1Y9bhunZyQ>
 
-## 遊び方
+## 流れ
 
-`robot-battle.html` をブラウザで開きます。同じフォルダの `robot-parts.js`（3Dパーツのデータ）と、Three.js r128（cdnjs から読み込み）を使います。ネットにつながっていないときと、WebGL が使えないときは、3D を出さずに遊べます。
+1. タイトル → 相手パイロットとの VS 画面
+
+   ![タイトル](docs/title.jpg)
+   ![VS 画面](docs/vs.jpg)
+
+2. カード配り（★3 は金色に光る）
+
+   ![カード配り](docs/deal.jpg)
+
+3. 格納庫で組み立て。部位がはまり、3つそろうと機体がチームカラーに塗られる。同じメーカーでそろえると SET BONUS
+
+   ![格納庫](docs/hangar.jpg)
+
+4. 設計図公開 → 出撃するロボットを選ぶ
+
+   ![出撃選択](docs/sortie.jpg)
+
+5. 3D の戦場で戦闘。索敵 → 先制 → 武器ごとの攻撃（ビーム、狙撃、マシンガン、バズーカ、ミサイル、ヒートソード）→ ガードか撃破
+
+   ![戦闘](docs/battle.jpg)
+
+6. 3試合のあと、相手の性格を当てる
+
+画像は `tools/shoot.js` で撮り直せます（下の「スクリーンショットを撮り直す」）。
 
 ## ファイル
 
 | ファイル | 中身 |
 |---|---|
-| `robot-battle.html` | ゲーム本体 |
-| `robot-parts.js` | ex-online の機体から切り出した頭・上半身・下半身（`tools/extract-parts.js` で作る） |
-| `tools/extract-parts.js` | 機体の .glb から、中くらいの細かさのモデル（`xs_body_lod1`）と光る部分を切り出す。三角形ごとに一番影響の強い骨で部位を決め、高さを 1 にそろえる |
+| `robot-battle.html` | ページ本体（`index.html` はここへ転送するだけ） |
+| `game.css` | 画面の見た目 |
+| `game.js` | ルール、CPU、画面の流れ、カード配り・組み立て・塗装の演出 |
+| `robo3d.js` | 部位を組んだロボット（腕が動き、右手に武器、塗装が足元から上がる）と、カードや格納庫の小さな絵 |
+| `battle3d.js` | 戦闘シーン（夕暮れの街、降下、索敵、攻撃、ガード、爆発、撃破） |
+| `fx.js` | 画面全体の演出（火花、紙吹雪、フラッシュ、揺れ、大きな文字、カットイン） |
+| `sfx.js` | 効果音と BGM（Web Audio） |
+| `robot-parts.js` | ex-online の機体から切り出した部位と武器（`tools/extract-parts.js` で作る） |
+| `audio/` | ex-online の効果音（mp3 に変換）と BGM |
+| `faces/` | パイロットの顔（ex-online） |
+| `tex/` | 地面とビルのテクスチャ（ex-online） |
+| `tools/extract-parts.js` | 機体の .glb の細かいモデル（`xs_body`。細かさを落としたモデルはひじ・ひざが無く ORB も粗い）と光る部分を、格納庫の立ち姿（ex-online の STAND、いわゆるカトキ立ち）に骨で曲げ、ORB をラックから下向きに吊るしてから、頭・胴・左腕・右腕・下半身に切り出す。各頂点がどの塗装枠（主装甲・副装甲・アクセント）かも記録する。武器の .glb も切り出す |
+| `tools/shots.js` `tools/shoot.js` | README のスクリーンショットを撮る（下を参照） |
 | `tools/robosim.js` | 性格を読むと得をするかの対戦シミュレーション |
 | `tools/robosim2.js` | CPU がこちらのクセを読んだときのシミュレーション |
-| `experiments/evolution/` | 先に試した進化ゲームの試作（レース、タイミング、カード、HEX陣取り）と、そのバランス調べ。どれも面白くならなかった記録 |
+| `experiments/evolution/` | 先に試した進化ゲームの試作。どれも面白くならなかった記録 |
 
 ## 3Dパーツを作り直す
 
 ```bash
-node tools/extract-parts.js C:/Users/nakam/ex-online/public/models robot-parts.js geo3=a_raid.glb geo2=a_heavy.glb geo1=a_support.glb tsui3=b_raid.glb tsui2=b_heavy.glb tsui1=b_support.glb ana3=a_sniper.glb ana2=b_sniper.glb ana1=a_aqua.glb
+node tools/extract-parts.js C:/Users/nakam/ex-online/public/models robot-parts.js geo3=a_raid.glb geo2=a_heavy.glb geo1=a_support.glb tsui3=b_raid.glb tsui2=b_heavy.glb tsui1=b_support.glb ana3=a_sniper.glb ana2=b_sniper.glb ana1=a_aqua.glb w:beam_rifle=w_a_beam_rifle.glb w:bazooka=w_a_heavy_bazooka.glb w:machine_gun=w_a_machine_gun.glb w:heat_sword=w_b_heat_sword.glb w:giant_bazooka=w_b_giant_bazooka.glb w:gatling=w_b_gatling.glb w:beam_sniper=w_a_beam_sniper.glb w:sniper_rifle=w_b_sniper_rifle.glb w:missile=w_a_aqua_missile.glb
 ```
 
-`ジオ`→`geo`、`ツイ`→`tsui`、`アナ`→`ana` に、カードの値（1〜3）を付けた名前が、どの機体のパーツを使うかを表します。対応を変えるときは、この引数を変えます。
+`ジオ`→`geo`、`ツイ`→`tsui`、`アナ`→`ana` に、カードの値（1〜3）を付けた名前が、どの機体のパーツを使うかを表します。`w:` が付いたものは武器です。どの上半身がどの武器を持つかは `robo3d.js` の `WEAPON_OF` にあります。
+
+## 手元で動かす
+
+```bash
+python -m http.server 8767
+```
+
+`http://localhost:8767/robot-battle.html` を開きます。
+
+## スクリーンショットを撮り直す
+
+`tools/shots.js` が各場面まで自動で進めてアニメーションを止め、`tools/shoot.js` がヘッドレスの Chrome でそれを撮って `docs/` に保存します。上の「手元で動かす」のサーバーを 8767 番で立ててから実行します。
+
+```bash
+npm install --prefix /tmp/shooter puppeteer-core
+```
+
+```bash
+NODE_PATH=/tmp/shooter/node_modules node tools/shoot.js
+```
+
+場面だけ選ぶときは `node tools/shoot.js battle:9500` のように、場面名と止める時刻（ミリ秒）を渡します。
 
 ## シミュレーション
 
@@ -39,3 +94,8 @@ node tools/robosim2.js
 
 - 性格を最初から知っている側は、ランダムに出す側より勝率が約15ポイント高い（66% と 51%）。3試合続けて推理すると、3試合目には知っている側とほぼ同じになる（65%）
 - CPU がこちらを読むようにすると、いつも同じ出し方をする側は 50% → 40% → 36% と下がる。ランダムに出す側は約 50% のまま
+
+## クレジット
+
+- BGM：Made with Suno（非商用、クレジット表記）
+- 機体・武器・効果音・顔・テクスチャ：ex-online（作者の自作）

@@ -1,496 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ロボットバトル</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap">
-<style>
-/* Layout: hangar sheet. Design bay (hand + three robot frames), then the battle deck with the rival's robots on top, yours below, and a matchup grid */
-:root {
-  --bg: #e9ebe6;
-  --surface: #fafaf7;
-  --cell: #f0f2ec;
-  --ink: #1d2230;
-  --muted: #5d6474;
-  --line: #ccd0c8;
-  --accent: #e0a100;
-  --me: #2b62c9;
-  --rival: #c8432f;
-  --win: #2e9e5b;
-  --lose: #d2493a;
-  --geo: #3d8f4f;
-  --tsui: #2f73c4;
-  --ana: #d07a23;
-  --display: 'Dela Gothic One', 'Hiragino Sans', 'Yu Gothic', sans-serif;
-  --body: 'Zen Kaku Gothic New', 'Hiragino Sans', 'Yu Gothic', sans-serif;
-}
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #12151c; --surface: #1b1f29; --cell: #222734; --ink: #e5e8ef; --muted: #98a0b2; --line: #2f3545;
-  --accent: #f2bd2c; --me: #6d9bff; --rival: #ff7d68; --win: #4cc27a; --lose: #ef6a5a; --geo: #5dbb70; --tsui: #5d9cf0; --ana: #f0a050;
-  color-scheme: dark; } }
-:root[data-theme="dark"] {
-  --bg: #12151c; --surface: #1b1f29; --cell: #222734; --ink: #e5e8ef; --muted: #98a0b2; --line: #2f3545;
-  --accent: #f2bd2c; --me: #6d9bff; --rival: #ff7d68; --win: #4cc27a; --lose: #ef6a5a; --geo: #5dbb70; --tsui: #5d9cf0; --ana: #f0a050;
-  color-scheme: dark; }
-* { box-sizing: border-box; }
-body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 14px; }
-#app { max-width: 1000px; margin: 0 auto; padding: 14px 16px 48px; display: grid; gap: 14px; }
-button { font: inherit; color: inherit; }
-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
-.brand { font-family: var(--display); font-size: 22px; letter-spacing: .02em; }
-.brand::before { content: ''; display: inline-block; width: 14px; height: 14px; margin-right: 8px; background: repeating-linear-gradient(45deg, var(--accent) 0 4px, var(--ink) 4px 8px); vertical-align: -1px; }
-#seriesInfo { color: var(--muted); font-variant-numeric: tabular-nums; }
-#seriesInfo b { font-family: var(--display); font-weight: 400; color: var(--ink); font-size: 18px; }
-.ghost { margin-left: auto; background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 12px; }
-.sheet { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 12px; min-width: 0; align-content: start; }
-.sheet h2 { margin: 0; font-size: 15px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.sheet h2 .sub { font-weight: 500; color: var(--muted); font-size: 12px; }
-.lbl { font-size: 11px; color: var(--muted); letter-spacing: .05em; }
-.msg { font-size: 14px; line-height: 1.6; padding: 10px 12px; border-radius: 10px; background: var(--cell); border-left: 4px solid var(--accent); }
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="game.css">
+</head>
+<body>
+<div id="bg" aria-hidden="true"></div>
 
-/* cards */
-.hand { display: grid; gap: 8px; }
-.handRow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.handRow .rl { width: 4.5em; font-size: 12px; font-weight: 700; color: var(--muted); }
-.pcard { width: 64px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--surface); padding: 0; cursor: pointer; overflow: hidden; display: grid; text-align: center; }
-.pcard:hover { border-color: var(--ink); }
-.pcard .mk { font-size: 10px; font-weight: 700; color: #fff; padding: 2px 0; }
-.pcard .v { font-family: var(--display); font-size: 22px; line-height: 1.3; }
-.pcard .pt { font-size: 10px; color: var(--muted); padding-bottom: 3px; }
-.mk.ジオ, .chip.ジオ { background: var(--geo); } .mk.ツイ, .chip.ツイ { background: var(--tsui); } .mk.アナ, .chip.アナ { background: var(--ana); }
-.pilotCard { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; border: 1.5px dashed var(--accent); font-size: 13px; }
-.pilotCard b { font-family: var(--display); font-weight: 400; }
+<!-- title -->
+<section id="title" class="screen">
+  <div class="titleWrap">
+    <canvas id="titleRobot" class="titleRobot robo3d" aria-hidden="true"></canvas>
+    <h1 class="logo"><span class="l1">ROBOT</span><span class="l2">BATTLE</span><span class="lj">ロボットバトル</span></h1>
+    <p class="tagline">部位カードで組め。読め。撃ち抜け。</p>
+    <button type="button" class="startBtn" id="startBtn">TAP TO START</button>
+    <button type="button" class="linkBtn" id="titleRules">遊び方</button>
+  </div>
+  <p class="credit">BGM: Made with Suno ／ 機体・効果音: ex-online</p>
+</section>
 
-/* robots */
-.robots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-@media (max-width: 640px) { .robots { grid-template-columns: 1fr; } }
-.robot { border: 1.5px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 6px; background: var(--cell); position: relative; min-width: 0; }
-.robot h3 { margin: 0; font-size: 13px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
-.slot { display: flex; align-items: center; gap: 6px; min-height: 30px; border: 1.5px dashed var(--line); border-radius: 7px; padding: 3px 6px; font-size: 12px; color: var(--muted); background: var(--surface); width: 100%; text-align: left; }
-.slot.filled { border-style: solid; color: var(--ink); cursor: pointer; }
-.slot .chip { font-size: 10px; font-weight: 700; color: #fff; border-radius: 4px; padding: 1px 5px; }
-.slot .sv { font-family: var(--display); font-size: 16px; margin-left: auto; }
-.statRow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; text-align: center; }
-.stat { border-radius: 6px; background: var(--surface); padding: 4px 0; display: grid; }
-.stat span { font-size: 10px; color: var(--muted); }
-.stat b { font-family: var(--display); font-weight: 400; font-size: 18px; line-height: 1.1; }
-.tags { display: flex; flex-wrap: wrap; gap: 4px; min-height: 18px; }
-.tag { font-size: 10px; font-weight: 700; border-radius: 999px; padding: 1px 7px; background: var(--accent); color: #241a00; }
-.tag.pilot { background: var(--ink); color: var(--surface); }
-.tag.rank { background: transparent; border: 1px solid currentColor; }
-.small { font-size: 11px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; }
-.robot.sel { border: 2.5px solid var(--me); padding: 9px; box-shadow: 0 3px 0 -1px var(--me); }
-.robot.used { opacity: .4; }
-.robot.pickable { cursor: pointer; }
-.robot.pickable:hover { border-color: var(--me); }
-.robot.rv { border-color: color-mix(in srgb, var(--rival) 45%, var(--line)); }
-.usedTag { position: absolute; top: 8px; right: 10px; font-size: 11px; font-weight: 700; }
-
-.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.primary { font-family: var(--display); font-size: 17px; background: var(--ink); color: var(--surface); border: 0; border-radius: 10px; padding: 11px 26px; cursor: pointer; }
-.primary.go { background: var(--me); color: #fff; }
-.primary:disabled { opacity: .35; cursor: not-allowed; }
-.secondary { background: transparent; border: 1.5px solid var(--line); border-radius: 10px; padding: 9px 16px; cursor: pointer; font-weight: 700; }
-.status { font-size: 13px; color: var(--muted); }
-
-/* matchup grid */
-.grid { overflow-x: auto; }
-table.mu { border-collapse: separate; border-spacing: 4px; font-size: 12px; min-width: 100%; }
-table.mu th { font-weight: 700; padding: 4px 6px; text-align: center; white-space: nowrap; }
-table.mu th.me { color: var(--me); text-align: right; }
-table.mu th.rv { color: var(--rival); }
-table.mu td { text-align: center; border-radius: 6px; padding: 6px 4px; font-weight: 700; min-width: 64px; }
-td.w { background: color-mix(in srgb, var(--win) 22%, var(--cell)); color: var(--win); }
-td.l { background: color-mix(in srgb, var(--lose) 22%, var(--cell)); color: var(--lose); }
-td.d { background: var(--cell); color: var(--muted); }
-td.off { opacity: .3; }
-
-.log { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
-.log li { padding: 5px 8px; border-radius: 6px; background: var(--cell); }
-.battle { display: grid; gap: 6px; padding: 12px; border-radius: 10px; background: var(--cell); }
-.battle .vs { font-family: var(--display); font-size: 18px; }
-.battle .res { font-family: var(--display); font-size: 26px; }
-.res.w { color: var(--win); } .res.l { color: var(--lose); } .res.d { color: var(--muted); }
-.persona { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
-.pbtn { text-align: left; padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; display: grid; gap: 4px; }
-.pbtn:hover { border-color: var(--ink); }
-.pbtn b { font-family: var(--display); font-weight: 400; font-size: 18px; }
-.pbtn span { font-size: 12px; color: var(--muted); line-height: 1.5; }
-.big { font-family: var(--display); font-size: clamp(24px, 6vw, 34px); }
-
-.overlay { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(4px); overflow-y: auto; }
-.overlay[hidden] { display: none; }
-.dialog { width: min(560px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: grid; gap: 12px; max-height: calc(100vh - 32px); overflow-y: auto; }
-.dialog h1 { font-family: var(--display); font-weight: 400; font-size: clamp(28px, 8vw, 40px); margin: 0; }
-.dialog p { margin: 0; line-height: 1.75; }
-.rule { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; line-height: 1.65; }
-.rule b.k { font-family: var(--display); font-weight: 400; color: var(--accent); }
-canvas.robo3d { width: 100%; max-width: 190px; aspect-ratio: 1; display: block; margin: 0 auto; border-radius: 8px;
-  background: radial-gradient(ellipse at 50% 85%, color-mix(in srgb, var(--ink) 14%, transparent), transparent 60%); }
-.pcard img { width: 100%; aspect-ratio: 1; display: block; background: color-mix(in srgb, var(--ink) 6%, transparent); }
-.vsScene { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
-.vsScene canvas.robo3d { max-width: 220px; }
-.vsScene .vsMark { font-family: var(--display); font-size: 22px; color: var(--accent); }
-.vsScene .side { display: grid; gap: 4px; text-align: center; font-size: 12px; font-weight: 700; }
-.quote { font-size: 14px; padding: 8px 12px; border-radius: 10px; border: 1.5px solid var(--rival); background: color-mix(in srgb, var(--rival) 8%, var(--surface)); }
-.quote b { color: var(--rival); }
-</style>
-
-<div id="app">
-  <header class="top">
-    <div class="brand">ロボットバトル</div>
-    <div id="seriesInfo"></div>
-    <button class="ghost" id="rulesBtn" type="button">遊び方</button>
-  </header>
-  <div class="msg" id="msg"></div>
-  <main id="main" style="display:grid;gap:14px"></main>
-</div>
-
-<div class="overlay" id="rules">
-  <div class="dialog">
-    <h1>ロボットバトル</h1>
-    <p>同じ相手パイロットと3試合戦います。相手には<b>性格</b>があり、ロボットを出す順番にクセが出ます。試合を重ねて性格を見抜き、裏をかきましょう。</p>
-    <p>ただし相手も<b>あなたのクセを覚えて</b>、読んでくるようになります。いつも同じ出し方をしていると、だんだん狙い撃ちされます。</p>
-    <div class="rule">
-      <b class="k">1</b><span><b>設計</b>：配られた9枚の部位カードでロボットを3体組み、パイロットを1体に乗せる。頭＝索敵、上半身＝攻撃、下半身＝防御。3部位が同じメーカーなら全能力+1、パイロットは得意部位が+1。</span>
-      <b class="k">2</b><span><b>設計図公開</b>：おたがいのロボット3体の能力が見える。</span>
-      <b class="k">3</b><span><b>出撃</b>：3回戦。毎回1体ずつ伏せて同時に出す。索敵が高いほうが先に攻撃し、攻撃が相手の防御を上回れば勝ち。外れたら反撃される。索敵が同じなら同時攻撃。</span>
-      <b class="k">4</b><span>3試合が終わったら、相手の性格を当ててみましょう。</span>
+<!-- game -->
+<section id="game" class="screen" hidden>
+  <header class="hud">
+    <div class="hudBrand">ROBOT<b>BATTLE</b></div>
+    <div class="series" id="seriesInfo"></div>
+    <div class="hudBtns">
+      <button type="button" class="iconBtn" id="muteBtn" aria-label="音を切る">🔊</button>
+      <button type="button" class="iconBtn" id="rulesBtn" aria-label="遊び方">？</button>
     </div>
-    <div><button class="primary" id="startBtn" type="button">はじめる</button></div>
+  </header>
+  <div class="banner" id="msg"></div>
+  <main id="main"></main>
+</section>
+
+<div class="overlay" id="rules" hidden>
+  <div class="dialog">
+    <h2>遊び方</h2>
+    <p>同じ相手パイロットと<b>3試合</b>戦います。相手には<b>性格</b>があり、ロボットを出す順番にクセが出ます。試合を重ねて性格を見抜き、裏をかきましょう。ただし相手も<b>あなたのクセを覚えて</b>読んできます。</p>
+    <div class="rule">
+      <b class="k">1</b><span><b>設計</b>：配られた9枚の部位カードでロボットを3体組み、パイロットを1体に乗せる。<b>頭＝索敵、上半身＝攻撃、下半身＝防御</b>。3部位が同じメーカーなら全能力+1、パイロットは得意部位が+1。</span>
+      <b class="k">2</b><span><b>設計図公開</b>：おたがいのロボット3体の能力が見える。</span>
+      <b class="k">3</b><span><b>出撃</b>：3回戦。毎回1体ずつ同時に出す。<b>索敵が高いほうが先に攻撃</b>し、<b>攻撃が相手の防御を上回れば撃破</b>。防がれたら反撃される。索敵が同じなら同時攻撃。</span>
+      <b class="k">4</b><span>3試合が終わったら、相手の性格を当てよう。</span>
+    </div>
+    <button type="button" class="bigBtn" id="closeRules">閉じる</button>
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="robot-parts.js"></script>
-<script>
-(() => {
-const $ = id => document.getElementById(id);
-const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
-const pick = a => a[Math.random() * a.length | 0];
-const MAKERS = ['ジオ', 'ツイ', 'アナ'], PARTS = ['head', 'upper', 'lower'];
-const PNAME = { head: '頭', upper: '上半身', lower: '下半身' }, SNAME = { head: '索敵', upper: '攻撃', lower: '防御' };
-const NOISE = .2, GAMES = 3;
-const PERSONAS = {
-  bold:    { n: '強気',  d: '一番強いロボットを最初に出したがる。設計も1体に強いカードを集める。', pattern: [0, 1, 2] },
-  careful: { n: '慎重',  d: '一番強いロボットを最後まで温存する。設計は3体をそろえて組む。', pattern: [2, 1, 0] },
-  tricky:  { n: '策士',  d: '最初に一番弱いロボットを捨て駒にして、2戦目に一番強いロボットを出す。', pattern: [2, 0, 1] },
-};
-const RANKN = ['最強', '中堅', '最弱'];
-const PILOTS = ['カイ', 'ミナ', 'ゴウ', 'リン', 'ソウ', 'ユズ'];
-const MODEL_KEY = { ジオ: 'geo', ツイ: 'tsui', アナ: 'ana' };
-const modelOf = c => MODEL_KEY[c.m] + c.v;
-
-// ---------- 3D: parts cut from the ex-online XS models (robot-parts.js) ----------
-const R3 = (() => {
-  if (!window.THREE || !window.ROBOT_PARTS) return null;
-  let renderer;
-  try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); } catch (e) { return null; }
-  const SIZE = 256;
-  renderer.setPixelRatio(1); renderer.setSize(SIZE, SIZE); renderer.outputEncoding = THREE.sRGBEncoding;
-  const scene = new THREE.Scene();
-  scene.add(new THREE.HemisphereLight(0xeef2ff, 0x404650, 1.1));
-  const key = new THREE.DirectionalLight(0xffffff, 1.3); key.position.set(1.5, 2.5, 2); scene.add(key);
-  const rim = new THREE.DirectionalLight(0xffe2a8, .6); rim.position.set(-2, 1, -1.5); scene.add(rim);
-  const camera = new THREE.PerspectiveCamera(30, 1, .01, 20);
-  const bytes = s => Uint8Array.from(atob(s), ch => ch.charCodeAt(0)).buffer;
-  const geoCache = {}, groupCache = new Map(), thumbCache = {};
-  function partGroup(model, part) {
-    const k = model + ':' + part;
-    if (!geoCache[k]) {
-      const M = ROBOT_PARTS[model];
-      geoCache[k] = M.parts[part].map(sub => {
-        const g = new THREE.BufferGeometry();
-        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bytes(sub.p)), 3));
-        g.setAttribute('normal', new THREE.BufferAttribute(new Int8Array(bytes(sub.n)), 3, true));
-        const c8 = new Uint8Array(bytes(sub.c)), lin = new Float32Array(c8.length);
-        for (let i = 0; i < c8.length; i++) lin[i] = Math.pow(c8[i] / 255, 2.2);
-        g.setAttribute('color', new THREE.BufferAttribute(lin, 3));
-        g.setIndex(new THREE.BufferAttribute(sub.big ? new Uint32Array(bytes(sub.i)) : new Uint16Array(bytes(sub.i)), 1));
-        const mat = sub.glow ? new THREE.MeshStandardMaterial({ vertexColors: true, emissive: new THREE.Color(...M.glow), emissiveIntensity: 1.2, roughness: .5 })
-          : new THREE.MeshStandardMaterial({ vertexColors: true, metalness: .45, roughness: .5 });
-        return { g, mat };
-      });
-    }
-    const grp = new THREE.Group();
-    geoCache[k].forEach(({ g, mat }) => grp.add(new THREE.Mesh(g, mat)));
-    return grp;
-  }
-  // lower body stands on the ground; upper body's waist joint goes on the lower body's waist joint; head goes on the upper body's neck
-  function robot(models) {
-    const k = JSON.stringify(models);
-    if (groupCache.has(k)) return groupCache.get(k);
-    const g = new THREE.Group(), J = m => ROBOT_PARTS[m].joints;
-    const waist = models.lower ? J(models.lower).torso : [0, .72, 0];
-    if (models.lower) g.add(partGroup(models.lower, 'lower'));
-    let neck = [0, .907, 0];
-    if (models.upper) {
-      const u = partGroup(models.upper, 'upper'), t = J(models.upper).torso, off = [waist[0] - t[0], waist[1] - t[1], waist[2] - t[2]];
-      u.position.set(...off); g.add(u);
-      const h = J(models.upper).head; neck = [h[0] + off[0], h[1] + off[1], h[2] + off[2]];
-    }
-    if (models.head) { const h = partGroup(models.head, 'head'), hj = J(models.head).head; h.position.set(neck[0] - hj[0], neck[1] - hj[1], neck[2] - hj[2]); g.add(h); }
-    groupCache.set(k, g);
-    return g;
-  }
-  function shoot(obj, cx, cy, dist, yaw, tilt) {
-    scene.add(obj); obj.rotation.set(0, yaw, tilt || 0);
-    camera.position.set(Math.sin(.35) * dist, cy + dist * .28, Math.cos(.35) * dist); camera.lookAt(cx, cy, 0);
-    renderer.render(scene, camera); scene.remove(obj);
-  }
-  function draw(canvas, models, yaw, tilt) {
-    const ctx = canvas.getContext('2d');
-    if (canvas.width !== SIZE) { canvas.width = SIZE; canvas.height = SIZE; }
-    const g = robot(models);
-    if (!g.userData.frame) { const bx = new THREE.Box3().setFromObject(g), sz = bx.getSize(new THREE.Vector3()); g.userData.frame = { cy: (bx.min.y + bx.max.y) / 2, dist: Math.max(sz.y, sz.x * 1.2, .5) * 2.05 }; }
-    shoot(g, 0, g.userData.frame.cy, g.userData.frame.dist, yaw, tilt);
-    ctx.clearRect(0, 0, SIZE, SIZE); ctx.drawImage(renderer.domElement, 0, 0);
-  }
-  function thumb(model, part) {
-    const k = model + ':' + part; if (thumbCache[k]) return thumbCache[k];
-    const g = partGroup(model, part), box = new THREE.Box3().setFromObject(g), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
-    g.position.set(-c.x, -c.y, -c.z);
-    const wrap = new THREE.Group(); wrap.add(g);
-    shoot(wrap, 0, 0, Math.max(sz.x, sz.y) * 2.6, -.5);
-    return thumbCache[k] = renderer.domElement.toDataURL('image/png');
-  }
-  return { draw, thumb };
-})();
-let spinStart = performance.now(), lastDraw = 0;
-function loop(now) {
-  requestAnimationFrame(loop);
-  if (!R3 || now - lastDraw < 33) return;
-  lastDraw = now;
-  const t = (now - spinStart) / 1000;
-  document.querySelectorAll('canvas.robo3d').forEach(cv => {
-    const r = cv.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight || !r.width) return;
-    const models = JSON.parse(cv.dataset.models || '{}');
-    const face = cv.dataset.face, ko = cv.dataset.ko === '1';
-    const yaw = face === 'right' ? .9 : face === 'left' ? -.9 : t * .6 + (+cv.dataset.phase || 0);
-    R3.draw(cv, models, yaw, ko ? (face === 'right' ? .35 : -.35) : 0);
-  });
-}
-requestAnimationFrame(loop);
-const modelsOf = r => ({ head: r.head && modelOf(r.head), upper: r.upper && modelOf(r.upper), lower: r.lower && modelOf(r.lower) });
-const canvasHTML = (r, extra = '') => R3 ? `<canvas class="robo3d" data-models='${JSON.stringify(modelsOf(r))}' data-phase="${(Math.random() * 6).toFixed(2)}" ${extra} aria-hidden="true"></canvas>` : '';
-
-// ---------- rules (as in n416/microtools robot/game.js) ----------
-function deck() { const d = { head: [], upper: [], lower: [] }; let n = 0; for (const p of PARTS) for (const m of MAKERS) for (const v of [3, 3, 2, 2, 1, 1]) d[p].push({ id: 'c' + n++, part: p, m, v }); for (const p of PARTS) shuffle(d[p]); return d; }
-function stats(r, pilot) {
-  if (!r.head || !r.upper || !r.lower) return null;
-  const b = r.head.m === r.upper.m && r.upper.m === r.lower.m ? 1 : 0;
-  return { s: r.head.v + b + (pilot === 'head'), a: r.upper.v + b + (pilot === 'upper'), d: r.lower.v + b + (pilot === 'lower'), set: !!b };
-}
-const total = s => s.s + s.a + s.d;
-function fight(p, c) {
-  if (p.s > c.s) return p.a > c.d ? { r: 1, t: `あなたが先に攻撃（索敵 ${p.s}＞${c.s}）→ 攻撃 ${p.a}＞防御 ${c.d} で命中！` } : c.a > p.d ? { r: -1, t: `あなたが先に攻撃（索敵 ${p.s}＞${c.s}）→ 攻撃 ${p.a}≦防御 ${c.d} で防がれた → 反撃 ${c.a}＞${p.d} を受けた` } : { r: 0, t: `あなたが先に攻撃 → 防がれた（${p.a}≦${c.d}）→ 相手の反撃も防いだ（${c.a}≦${p.d}）` };
-  if (c.s > p.s) return c.a > p.d ? { r: -1, t: `相手が先に攻撃（索敵 ${c.s}＞${p.s}）→ 攻撃 ${c.a}＞防御 ${p.d} で命中された` } : p.a > c.d ? { r: 1, t: `相手が先に攻撃（索敵 ${c.s}＞${p.s}）→ 防いだ（${c.a}≦${p.d}）→ 反撃 ${p.a}＞${c.d} が命中！` } : { r: 0, t: `相手が先に攻撃 → 防いだ（${c.a}≦${p.d}）→ 反撃も防がれた（${p.a}≦${c.d}）` };
-  const ph = p.a > c.d, ch = c.a > p.d;
-  return { r: ph && !ch ? 1 : ch && !ph ? -1 : 0, t: `索敵が同じ（${p.s}）で同時攻撃 → あなた ${ph ? '命中' : '防がれた'}、相手 ${ch ? '命中' : '防いだ'}` };
-}
-
-// ---------- CPU ----------
-const PERMS = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
-function allDesigns(hand, pilot) {
-  const out = [];
-  for (const ph of PERMS) for (const pu of PERMS) for (const pl of PERMS) for (let pi = 0; pi < 3; pi++) {
-    const robots = [0, 1, 2].map(k => ({ head: hand.head[ph[k]], upper: hand.upper[pu[k]], lower: hand.lower[pl[k]] }));
-    out.push({ robots, pilotAt: pi, st: robots.map((r, k) => stats(r, k === pi ? pilot : null)) });
-  }
-  return out;
-}
-const DESIGN = {
-  player: st => st.reduce((a, s) => a + total(s), 0) * 10 + Math.min(...st.map(total)),
-  bold: st => Math.max(...st.map(total)) * 10 + st.reduce((a, s) => a + total(s), 0),
-  careful: st => Math.min(...st.map(total)) * 10 + st.reduce((a, s) => a + total(s), 0),
-  tricky: st => { const t = st.map(total).sort((a, b) => b - a); return (t[0] + t[1]) * 10 - t[2]; },
-};
-function bestDesign(hand, pilot, kind) { let b = null, bv = -1e9; for (const d of allDesigns(hand, pilot)) { const v = DESIGN[kind](d.st) + Math.random() * .01; if (v > bv) { bv = v; b = d; } } return b; }
-const ranks = st => [0, 1, 2].sort((a, b) => total(st[b]) - total(st[a]) || a - b);
-// The CPU keeps a tally of which of your robots (strongest / middle / weakest) you send in each round.
-// The more it has seen, the more often it plays a counter to your habit instead of its own personality.
-const READ_NOISE = .15;
-const readWeight = () => Math.min(.8, .2 * S.nObs);
-function cpuChoose() {
-  const g = S.g, avail = [0, 1, 2].filter(i => !g.cpuUsed.includes(i));
-  if (Math.random() < READ_NOISE) return { c: pick(avail), mode: 'whim' };
-  if (Math.random() < readWeight()) {
-    const me = mySt(), myRk = ranks(me);
-    const samplePlayer = () => { const used = g.myUsed.slice(), seq = []; for (let r = g.round; r < 3; r++) { const av = [0, 1, 2].filter(i => !used.includes(i)); const w = av.map(i => S.habit[r][myRk.indexOf(i)] * 2 + .5); let x = Math.random() * w.reduce((a, b) => a + b, 0), k = 0; while ((x -= w[k]) > 0) k++; seq.push(av[k]); used.push(av[k]); } return seq; };
-    const seqs = Array.from({ length: 24 }, samplePlayer);
-    const perms = arr => arr.length <= 1 ? [arr] : arr.flatMap((x, i) => perms(arr.filter((_, j) => j !== i)).map(p => [x, ...p]));
-    let best = null, bv = -1e9;
-    for (const p of perms(avail)) { let v = 0; for (const sq of seqs) sq.forEach((i, r) => v -= fight(me[i], g.cpuSt[p[r]]).r); v += Math.random() * .01; if (v > bv) { bv = v; best = p[0]; } }
-    // what it expects you to send now: your most frequent rank for this round among what you have left
-    const av = [0, 1, 2].filter(i => !g.myUsed.includes(i));
-    const expect = av.sort((a, b) => S.habit[g.round][myRk.indexOf(b)] - S.habit[g.round][myRk.indexOf(a)])[0];
-    return { c: best, mode: 'read', expect: myRk.indexOf(expect) };
-  }
-  const rk = ranks(g.cpuSt), want = rk[PERSONAS[S.persona].pattern[g.round]];
-  return { c: avail.includes(want) ? want : avail.sort((a, b) => rk.indexOf(a) - rk.indexOf(b))[0], mode: 'persona' };
-}
-
-// ---------- state ----------
-let S;
-function newSeries() {
-  S = { persona: pick(Object.keys(PERSONAS)), rivalName: pick(PILOTS), game: 0, wins: [0, 0, 0], history: [], phase: 'design', guess: null, habit: [[0, 0, 0], [0, 0, 0], [0, 0, 0]], nObs: 0, reads: [0, 0] };
-  newGame();
-}
-function newGame() {
-  S.game++;
-  const d = deck(), pilots = shuffle(['head', 'head', 'upper', 'upper', 'lower', 'lower']);
-  const hand = () => ({ head: d.head.splice(0, 3), upper: d.upper.splice(0, 3), lower: d.lower.splice(0, 3) });
-  const myHand = hand(), cpuHand = hand();
-  const cpu = bestDesign(cpuHand, pilots[1], S.persona);
-  S.g = { hand: [...myHand.head, ...myHand.upper, ...myHand.lower], myHandOrig: myHand, pilot: pilots[0], robots: [{}, {}, {}], pilotAt: null,
-          cpuPilot: pilots[1], cpu, cpuSt: cpu.st, myUsed: [], cpuUsed: [], round: 0, score: [0, 0], sel: null, last: null, roundsLog: [] };
-  S.phase = 'design';
-  render();
-}
-const mySt = () => S.g.robots.map((r, k) => stats(r, k === S.g.pilotAt ? S.g.pilot : null));
-const designDone = () => mySt().every(Boolean) && S.g.pilotAt !== null;
-
-function place(id) {
-  const g = S.g, i = g.hand.findIndex(c => c.id === id); if (i < 0) return;
-  const c = g.hand[i], k = g.robots.findIndex(r => !r[c.part]); if (k < 0) return;
-  g.robots[k][c.part] = c; g.hand.splice(i, 1);
-}
-function unplace(k, part) { const g = S.g, c = g.robots[k][part]; if (!c) return; g.hand.push(c); delete g.robots[k][part]; }
-function autoDesign() {
-  const g = S.g, d = bestDesign(g.myHandOrig, g.pilot, 'player');
-  g.robots = d.robots.map(r => ({ ...r })); g.pilotAt = d.pilotAt; g.hand = [];
-}
-function sortie() {
-  const g = S.g; if (g.sel === null || g.myUsed.includes(g.sel)) return;
-  const ch = cpuChoose(), c = ch.c, me = mySt();
-  const f = fight(me[g.sel], g.cpuSt[c]);
-  const rk = ranks(g.cpuSt), myRk = ranks(me);
-  const myRank = myRk.indexOf(g.sel);
-  let quote = '';
-  if (ch.mode === 'read') {
-    const hit = ch.expect === myRank; S.reads[1]++; if (hit) S.reads[0]++;
-    quote = hit ? pick([`${RANKN[myRank]}で来ると思ったよ。`, `やっぱりね、${g.round + 1}戦目は${RANKN[myRank]}でしょ。`, 'そのクセ、もう覚えたよ。'])
-      : pick([`あれ、${RANKN[ch.expect]}で来ると読んだのに。`, '読みが外れた…。', `${RANKN[myRank]}か、意外だな。`]);
-  }
-  S.habit[g.round][myRank]++; S.nObs++;
-  g.myUsed.push(g.sel); g.cpuUsed.push(c);
-  if (f.r > 0) g.score[0]++; else if (f.r < 0) g.score[1]++;
-  g.last = { me: g.sel, cpu: c, f, cpuRank: rk.indexOf(c), myRank, quote };
-  S.history.push({ game: S.game, round: g.round + 1, cpuRank: rk.indexOf(c), myRank, r: f.r, mode: ch.mode });
-  g.round++; g.sel = null;
-  S.phase = 'result';
-  render();
-}
-function afterResult() {
-  const g = S.g;
-  if (g.round < 3) { S.phase = 'battle'; render(); return; }
-  const w = g.score[0] > g.score[1] ? 0 : g.score[1] > g.score[0] ? 1 : 2;
-  S.wins[w]++;
-  S.phase = 'gameEnd'; render();
-}
-
-// ---------- input ----------
-document.addEventListener('click', e => {
-  const b = e.target.closest('button,[data-pick]'); if (!b) return;
-  const g = S && S.g;
-  if (b.id === 'startBtn') { $('rules').hidden = true; return; }
-  if (b.id === 'rulesBtn') { $('rules').hidden = false; $('startBtn').textContent = '閉じる'; return; }
-  if (b.dataset.card) { place(b.dataset.card); render(); return; }
-  if (b.dataset.unplace) { const [k, p] = b.dataset.unplace.split(':'); unplace(+k, p); render(); return; }
-  if (b.dataset.pilot !== undefined) { g.pilotAt = +b.dataset.pilot; render(); return; }
-  if (b.id === 'autoBtn') { autoDesign(); render(); return; }
-  if (b.id === 'resetBtn') { g.hand = [...g.myHandOrig.head, ...g.myHandOrig.upper, ...g.myHandOrig.lower]; g.robots = [{}, {}, {}]; g.pilotAt = null; render(); return; }
-  if (b.id === 'designBtn' && designDone()) { S.phase = 'battle'; render(); return; }
-  if (b.dataset.pick !== undefined && S.phase === 'battle') { const k = +b.dataset.pick; if (!g.myUsed.includes(k)) { g.sel = k; render(); } return; }
-  if (b.id === 'sortieBtn') { sortie(); return; }
-  if (b.id === 'nextRoundBtn') { afterResult(); return; }
-  if (b.id === 'nextGameBtn') { if (S.game < GAMES) newGame(); else { S.phase = 'guess'; render(); } return; }
-  if (b.dataset.guess) { S.guess = b.dataset.guess; S.phase = 'reveal'; render(); return; }
-  if (b.id === 'againBtn') { newSeries(); return; }
-});
-
-// ---------- render ----------
-const cardHTML = c => `<button type="button" class="pcard" data-card="${c.id}" aria-label="${c.m} ${PNAME[c.part]} ${c.v}"><span class="mk ${c.m}">${c.m}</span>${R3 ? `<img src="${R3.thumb(modelOf(c), c.part)}" alt="">` : ''}<span class="v">${c.v}</span><span class="pt">${PNAME[c.part]}</span></button>`;
-function statHTML(s) { return s ? `<div class="statRow">${[['索敵', s.s], ['攻撃', s.a], ['防御', s.d]].map(([n, v]) => `<div class="stat"><span>${n}</span><b>${v}</b></div>`).join('')}</div>` : `<div class="statRow">${['索敵', '攻撃', '防御'].map(n => `<div class="stat"><span>${n}</span><b>−</b></div>`).join('')}</div>`; }
-function robotView(r, s, opts) {
-  const parts = PARTS.map(p => {
-    const c = r[p];
-    if (!c) return `<div class="slot">${PNAME[p]}：空き</div>`;
-    const inner = `<span class="chip ${c.m}">${c.m}</span>${PNAME[p]}<span class="sv">${c.v}</span>`;
-    return opts.editable ? `<button type="button" class="slot filled" data-unplace="${opts.k}:${p}" title="手札に戻す">${inner}</button>` : `<div class="slot filled">${inner}</div>`;
-  }).join('');
-  const tags = [s && s.set ? '<span class="tag">同メーカー +1</span>' : '', opts.pilot ? `<span class="tag pilot">パイロット（${PNAME[opts.pilot]}+1）</span>` : '', opts.rank !== undefined ? `<span class="tag rank">${RANKN[opts.rank]}</span>` : ''].join('');
-  return `${canvasHTML(r)}${parts}${statHTML(s)}<div class="tags">${tags}</div>`;
-}
-function render() {
-  const g = S.g;
-  $('seriesInfo').innerHTML = `相手：<b>${S.rivalName}</b>　第<b>${Math.min(S.game, GAMES)}</b>試合 / ${GAMES}　あなた <b>${S.wins[0]}</b> 勝 ― <b>${S.wins[1]}</b> 勝 ${S.rivalName}${S.wins[2] ? `（引分 ${S.wins[2]}）` : ''}`;
-  const main = $('main');
-  if (S.phase === 'design') {
-    const st = mySt();
-    const handRows = PARTS.map(p => { const cs = g.hand.filter(c => c.part === p); return `<div class="handRow"><span class="rl">${PNAME[p]}</span>${cs.length ? cs.map(cardHTML).join('') : '<span class="status">配置ずみ</span>'}</div>`; }).join('');
-    $('msg').innerHTML = `<b>第${S.game}試合：設計</b>　手札のカードをタップすると、空いているロボットに入ります。入れたカードをタップすると手札に戻ります。`;
-    main.innerHTML = `
-      <section class="sheet"><h2>手札 <span class="sub">頭＝索敵、上半身＝攻撃、下半身＝防御</span></h2>
-        <div class="hand">${handRows}</div>
-        <div><span class="pilotCard">パイロット：<b>${PNAME[g.pilot]}</b>が得意（${SNAME[g.pilot]}+1）</span></div></section>
-      <section class="sheet"><h2>ロボット設計 <span class="sub">3部位を同じメーカーでそろえると全能力+1</span></h2>
-        <div class="robots">${g.robots.map((r, k) => `<div class="robot"><h3>ロボット${k + 1}<button type="button" class="small" data-pilot="${k}" ${st[k] ? '' : 'disabled'}>${g.pilotAt === k ? 'パイロット搭乗中' : 'パイロットを乗せる'}</button></h3>${robotView(r, st[k], { editable: true, k, pilot: g.pilotAt === k ? g.pilot : null })}</div>`).join('')}</div>
-        <div class="actions"><button type="button" class="primary" id="designBtn" ${designDone() ? '' : 'disabled'}>設計完了</button><button type="button" class="secondary" id="autoBtn">おまかせ設計</button><button type="button" class="secondary" id="resetBtn">やり直す</button>
-          <span class="status">${designDone() ? '設計完了で、おたがいの設計図が公開されます' : g.hand.length ? `あと${g.hand.length}枚` : 'パイロットを乗せてください'}</span></div></section>`;
-    return;
-  }
-  if (S.phase === 'guess' || S.phase === 'reveal') { renderEnd(main); return; }
-  const me = mySt(), rk = ranks(g.cpuSt), myRk = ranks(me);
-  const cpuRow = g.cpuSt.map((s, k) => `<div class="robot rv ${g.cpuUsed.includes(k) ? 'used' : ''}"><h3>${S.rivalName}の機体 ${'ABC'[k]}</h3>${g.cpuUsed.includes(k) ? '<span class="usedTag">出撃ずみ</span>' : ''}${robotView(g.cpu.robots[k], s, { pilot: g.cpu.pilotAt === k ? g.cpuPilot : null, rank: rk.indexOf(k) })}</div>`).join('');
-  const myRow = me.map((s, k) => { const used = g.myUsed.includes(k), can = S.phase === 'battle' && !used;
-    return `<div class="robot ${used ? 'used' : ''} ${g.sel === k ? 'sel' : ''} ${can ? 'pickable' : ''}" ${can ? `data-pick="${k}" role="button" tabindex="0"` : ''}><h3>あなたのロボット${k + 1}</h3>${used ? '<span class="usedTag">出撃ずみ</span>' : ''}${robotView(g.robots[k], s, { pilot: g.pilotAt === k ? g.pilot : null, rank: myRk.indexOf(k) })}</div>`; }).join('');
-  const mu = `<table class="mu"><tr><th></th>${g.cpuSt.map((_, k) => `<th class="rv">相手 ${'ABC'[k]}<br><span class="lbl">${RANKN[rk.indexOf(k)]}</span></th>`).join('')}</tr>${me.map((s, i) => `<tr><th class="me">あなた ${i + 1}</th>${g.cpuSt.map((c, k) => { const r = fight(s, c).r, off = g.myUsed.includes(i) || g.cpuUsed.includes(k); return `<td class="${r > 0 ? 'w' : r < 0 ? 'l' : 'd'} ${off ? 'off' : ''}">${r > 0 ? '勝ち' : r < 0 ? '負け' : '引分'}</td>`; }).join('')}</tr>`).join('')}</table>`;
-  const hist = S.history.length ? `<ul class="log">${S.history.map(h => `<li>第${h.game}試合 ${h.round}戦目：あなたは${RANKN[h.myRank]}、${S.rivalName}は<b>${RANKN[h.cpuRank]}</b>を出した（${h.r > 0 ? 'あなたの勝ち' : h.r < 0 ? '相手の勝ち' : '引分'}）</li>`).join('')}</ul>` : '<span class="status">まだ記録がありません。出し方のクセを覚えておきましょう。</span>';
-  let panel = '';
-  if (S.phase === 'battle') {
-    $('msg').innerHTML = `<b>第${S.game}試合 ${g.round + 1}戦目</b>（あなた ${g.score[0]} ― ${g.score[1]} ${S.rivalName}）　出撃させるロボットを選んでください。${S.rivalName}も同時に1体を出します。`;
-    panel = `<div class="actions"><button type="button" class="primary go" id="sortieBtn" ${g.sel === null ? 'disabled' : ''}>出撃</button><span class="status">${g.sel === null ? 'あなたのロボットをタップして選ぶ' : `ロボット${g.sel + 1}で出撃します。${S.rivalName}はどれを出してくる？`}</span></div>`;
-  } else if (S.phase === 'result') {
-    const L = g.last, cls = L.f.r > 0 ? 'w' : L.f.r < 0 ? 'l' : 'd';
-    $('msg').innerHTML = `<b>第${S.game}試合 ${g.round}戦目の結果</b>（あなた ${g.score[0]} ― ${g.score[1]} ${S.rivalName}）`;
-    panel = `${R3 ? `<div class="vsScene"><div class="side" style="color:var(--me)">${canvasHTML(g.robots[L.me], `data-face="right" data-ko="${L.f.r < 0 ? 1 : 0}"`)}あなたのロボット${L.me + 1}</div><span class="vsMark">VS</span><div class="side" style="color:var(--rival)">${canvasHTML(g.cpu.robots[L.cpu], `data-face="left" data-ko="${L.f.r > 0 ? 1 : 0}"`)}${S.rivalName}の機体 ${'ABC'[L.cpu]}</div></div>` : ''}
-      ${L.quote ? `<div class="quote"><b>${S.rivalName}</b>「${L.quote}」</div>` : ''}
-      <div class="battle"><span class="vs">あなたのロボット${L.me + 1}（${RANKN[L.myRank]}） vs ${S.rivalName}の機体 ${'ABC'[L.cpu]}（${RANKN[L.cpuRank]}）</span><span>${L.f.t}</span><span class="res ${cls}">${L.f.r > 0 ? '勝ち！' : L.f.r < 0 ? '負け…' : '引き分け'}</span></div>
-      <div class="actions"><button type="button" class="primary" id="nextRoundBtn">${g.round < 3 ? '次の戦いへ' : '試合結果へ'}</button></div>`;
-  } else if (S.phase === 'gameEnd') {
-    const w = g.score[0] > g.score[1] ? 'あなたの勝ち！' : g.score[1] > g.score[0] ? `${S.rivalName}の勝ち` : '引き分け';
-    $('msg').innerHTML = `<b>第${S.game}試合終了：${w}</b>（${g.score[0]} ― ${g.score[1]}）`;
-    panel = `<div class="actions"><button type="button" class="primary" id="nextGameBtn">${S.game < GAMES ? '次の試合へ（新しいカードで設計）' : '相手の性格を当てる'}</button><span class="status">${S.rivalName}の出し方のクセは見えてきましたか？</span></div>`;
-  }
-  main.innerHTML = `
-    <section class="sheet"><h2>${S.rivalName}のロボット <span class="sub">設計図公開ずみ。最強・中堅・最弱は能力の合計で決まります</span></h2><div class="robots">${cpuRow}</div></section>
-    <section class="sheet">${panel}</section>
-    <section class="sheet"><h2>あなたのロボット</h2><div class="robots">${myRow}</div></section>
-    <section class="sheet"><h2>相性表 <span class="sub">どの組み合わせで当たると勝つか</span></h2><div class="grid">${mu}</div></section>
-    <section class="sheet"><h2>${S.rivalName}の出し方の記録 <span class="sub">性格を見抜く手がかり</span></h2>${hist}</section>`;
-}
-function renderEnd(main) {
-  const p = PERSONAS[S.persona];
-  const seriesW = S.wins[0] > S.wins[1] ? 'シリーズはあなたの勝ち！' : S.wins[1] > S.wins[0] ? `シリーズは${S.rivalName}の勝ち` : 'シリーズは引き分け';
-  const MODE = { persona: '性格どおり', read: 'あなたを読んだ', whim: '気まぐれ' };
-  const hist = `<ul class="log">${S.history.map(h => `<li>第${h.game}試合 ${h.round}戦目：あなた ${RANKN[h.myRank]} ／ ${S.rivalName} <b>${RANKN[h.cpuRank]}</b>${S.phase === 'reveal' ? `（${MODE[h.mode]}）` : ''}</li>`).join('')}</ul>`;
-  if (S.phase === 'guess') {
-    $('msg').innerHTML = `<b>${seriesW}</b>（${S.wins[0]} ― ${S.wins[1]}）　最後に、${S.rivalName}の性格を当ててみましょう。`;
-    main.innerHTML = `<section class="sheet"><h2>${S.rivalName}はどんな性格？</h2><div class="persona">${Object.entries(PERSONAS).map(([k, v]) => `<button type="button" class="pbtn" data-guess="${k}"><b>${v.n}</b><span>${v.d}</span></button>`).join('')}</div></section>
-      <section class="sheet"><h2>出し方の記録</h2>${hist}</section>`;
-    return;
-  }
-  const ok = S.guess === S.persona;
-  $('msg').innerHTML = `<b>${seriesW}</b>（${S.wins[0]} ― ${S.wins[1]}）`;
-  main.innerHTML = `<section class="sheet"><span class="big" style="color:${ok ? 'var(--win)' : 'var(--lose)'}">${ok ? '見抜いた！' : '外れ…'}</span>
-      <p style="margin:0;line-height:1.7">${S.rivalName}の性格は<b>「${p.n}」</b>でした。${p.d}</p>
-      <p style="margin:0;line-height:1.7">ただし${S.rivalName}も<b>あなたのクセを読んでいました</b>。性格どおりに出したのは ${S.history.filter(h => h.mode === 'persona').length} 回、あなたを読んで出したのは ${S.history.filter(h => h.mode === 'read').length} 回（読みが当たったのは ${S.reads[0]} 回）、気まぐれが ${S.history.filter(h => h.mode === 'whim').length} 回です。</p>
-      <p style="margin:0;line-height:1.7">あなたのクセ：${[0, 1, 2].map(r => { const h = S.habit[r], m = h.indexOf(Math.max(...h)); return `${r + 1}戦目は${RANKN[m]}が${h[m]}回`; }).join('、')}</p>
-      <div class="actions"><button type="button" class="primary" id="againBtn">別の相手と戦う</button></div></section>
-    <section class="sheet"><h2>出し方の記録</h2>${hist}</section>`;
-}
-document.addEventListener('keydown', e => { const t = e.target.closest && e.target.closest('[data-pick]'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); t.click(); } });
-
-newSeries();
-})();
-</script>
+<script src="sfx.js"></script>
+<script src="fx.js"></script>
+<script src="robo3d.js"></script>
+<script src="battle3d.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
