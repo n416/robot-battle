@@ -1,0 +1,432 @@
+<title>進化の読み合い</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap">
+<style>
+/* Layout: a 19-hex continent (cold north, hot south) is the table; evolution and orders sit beside it, species sheets below */
+:root {
+  --bg: #eceee8;
+  --surface: #f9faf6;
+  --cell: #f2f4ee;
+  --ink: #1b2420;
+  --muted: #5e6b64;
+  --line: #cdd5cb;
+  --me: #13866b;
+  --rival: #c2492f;
+  --good: #2e9e5b;
+  --bad: #d2493a;
+  --gold: #c98f12;
+  --display: 'Dela Gothic One', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+  --body: 'Zen Kaku Gothic New', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111714; --surface: #1a221e; --cell: #212a26; --ink: #e3ebe5; --muted: #93a39a; --line: #2e3a34;
+  --me: #4fd3ae; --rival: #ff7f62; --good: #4cc27a; --bad: #ef6a5a; --gold: #f0c24f;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #111714; --surface: #1a221e; --cell: #212a26; --ink: #e3ebe5; --muted: #93a39a; --line: #2e3a34;
+  --me: #4fd3ae; --rival: #ff7f62; --good: #4cc27a; --bad: #ef6a5a; --gold: #f0c24f;
+  color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 14px; }
+#app { max-width: 1040px; margin: 0 auto; padding: 14px 16px 48px; display: grid; gap: 14px; }
+button { font: inherit; color: inherit; }
+button:focus-visible, [data-cell]:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.brand { font-family: var(--display); font-size: 22px; }
+#roundInfo { color: var(--muted); font-variant-numeric: tabular-nums; }
+#roundInfo b { font-family: var(--display); font-weight: 400; color: var(--ink); font-size: 18px; }
+.ghost { margin-left: auto; background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 12px; }
+.sheet { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; min-width: 0; align-content: start; }
+.lbl { font-size: 11px; color: var(--muted); letter-spacing: .05em; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.warn { color: var(--bad); font-weight: 700; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 860px) { .main { grid-template-columns: 1fr; } }
+.scores { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.score { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 10px; background: var(--cell); }
+.score .who { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.score .n { font-family: var(--display); font-size: 26px; font-variant-numeric: tabular-nums; }
+.score .n small { font-family: var(--body); font-size: 12px; color: var(--muted); }
+.climate { font-size: 13px; line-height: 1.6; }
+svg.map { width: 100%; height: auto; display: block; }
+svg.map text { font-family: var(--body); pointer-events: none; }
+.hex { stroke: var(--surface); stroke-width: 2; }
+[data-cell] { cursor: default; }
+[data-cell].can { cursor: pointer; }
+[data-cell].can:hover .hex { filter: brightness(1.12); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 4px; }
+@keyframes pulse { 0% { stroke-opacity: 1; stroke-width: 8; } 100% { stroke-opacity: 0; stroke-width: 18; } }
+.changed { animation: pulse 1.2s ease-out 3; }
+
+.strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
+.strip i { font-style: normal; font-size: 11px; font-weight: 700; text-align: center; border-radius: 4px; padding: 2px 0; font-variant-numeric: tabular-nums; }
+.stripHead { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; font-size: 9px; text-align: center; color: var(--muted); }
+.step { display: grid; gap: 8px; }
+.step h3 { margin: 0; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.step h3 .no { font-family: var(--display); font-weight: 400; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--surface); font-size: 13px; flex: none; }
+.step.done h3 .no { background: var(--me); }
+.step h3 .sub { font-weight: 500; color: var(--muted); font-size: 12px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.card { text-align: left; cursor: pointer; background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 9px 10px; display: grid; gap: 5px; align-content: start; }
+.card:hover { border-color: var(--ink); }
+.card.on { border: 2.5px solid var(--me); padding: 8px 9px; box-shadow: 0 3px 0 -1px var(--me); }
+.card .cn { font-weight: 700; }
+.card .note { font-size: 11px; color: var(--muted); }
+.card .kind { font-size: 10px; color: var(--muted); }
+.targets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
+.tchip { border: 1.5px dashed var(--ink); border-radius: 8px; padding: 3px 9px; font-weight: 700; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.primary { font-family: var(--display); font-size: 17px; background: var(--me); color: var(--surface); border: 0; border-radius: 10px; padding: 11px 28px; cursor: pointer; }
+.primary:disabled { opacity: .35; cursor: not-allowed; }
+.status { font-size: 13px; color: var(--muted); }
+
+.panels { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 700px) { .panels { grid-template-columns: 1fr; } }
+.traitList { display: grid; gap: 6px; }
+.trait { text-align: left; border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; background: var(--cell); display: grid; gap: 4px; position: relative; }
+.trait.empty { color: var(--muted); border-style: dashed; background: transparent; font-size: 12px; }
+.trait.pick { cursor: pointer; border: 2px solid var(--gold); }
+.trait.rep { border: 2px solid var(--bad); }
+.trait .nm { font-weight: 700; font-size: 13px; }
+.repTag { position: absolute; top: 6px; right: 8px; font-size: 11px; color: var(--bad); font-weight: 700; }
+
+.events { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.events li { padding: 7px 10px; border-radius: 8px; background: var(--cell); font-size: 13px; line-height: 1.55; border-left: 4px solid var(--line); }
+.events li.me { border-left-color: var(--me); }
+.events li.rv { border-left-color: var(--rival); }
+.events li.fight { border-left-color: var(--gold); }
+.bigMsg { font-family: var(--display); font-size: clamp(20px, 4.5vw, 28px); }
+
+.overlay { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(4px); overflow-y: auto; }
+.dialog { width: min(560px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: grid; gap: 12px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.dialog h1 { font-family: var(--display); font-weight: 400; font-size: clamp(28px, 8vw, 40px); margin: 0; line-height: 1.15; text-wrap: balance; }
+.dialog p { margin: 0; line-height: 1.75; }
+.rule { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; line-height: 1.65; }
+.rule b.k { font-family: var(--display); font-weight: 400; color: var(--me); }
+table.hist { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.hist th { text-align: left; font-weight: 500; color: var(--muted); padding: 4px; font-size: 11px; }
+table.hist td { padding: 6px 4px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .changed { animation: none; } }
+</style>
+
+<div id="app">
+  <header class="top">
+    <div class="brand">進化の読み合い</div>
+    <div id="roundInfo"></div>
+    <button class="ghost" id="rulesBtn" type="button">遊び方</button>
+  </header>
+  <div class="main">
+    <section class="sheet">
+      <div class="scores" id="scores"></div>
+      <div class="climate" id="climate"></div>
+      <svg class="map" id="map" viewBox="-250 -168 500 336" role="group" aria-label="大陸のマップ"></svg>
+      <div class="legend" id="legend"></div>
+    </section>
+    <section class="sheet" id="side"></section>
+  </div>
+  <div class="panels">
+    <section class="sheet" id="mePanel"></section>
+    <section class="sheet" id="npcPanel"></section>
+  </div>
+</div>
+
+<div class="overlay" id="rules">
+  <div class="dialog">
+    <h1>進化の読み合い</h1>
+    <p>北は寒く、南は暑い大陸で、ライバルの種と陣地を取り合います。7世代後に、持っているマスが多いほうの勝ち。</p>
+    <div class="rule">
+      <b class="k">1</b><span>毎世代、<b>進化</b>を1つ選び（寒さ向き・暑さ向き・どこでも向きの3枚から。しなくてもいい）、自分の陣地の<b>隣のマスを2つ</b>選んで、広がる先として伏せて出す。</span>
+      <b class="k">2</b><span>空いているマスは、そのまま取れる。ただし<b>体の点数がマイナスのマスには住めない</b>。</span>
+      <b class="k">3</b><span>同じマスを狙い合ったり、相手のマスに攻め込んだりしたら、<b>そのマスの気温での体の点数が高いほうが勝つ</b>。同点なら、空きマスは誰も取れず、相手のマスは守る側の勝ち。</span>
+      <b class="k">4</b><span>進化して体の点数がマイナスになったマスからは、<b>種が消える</b>。</span>
+      <b class="k">5</b><span>3世代目と6世代目に<b>寒冷期か温暖期</b>が来て、すべてのマスの気温が1段階ずれる（1世代前に予報あり）。</span>
+    </div>
+    <div><button class="primary" id="startBtn" type="button">はじめる</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="end" hidden>
+  <div class="dialog">
+    <h1 id="endTitle"></h1>
+    <p id="endSub"></p>
+    <table class="hist"><thead><tr><th>世代</th><th>あなた</th><th>ライバル</th></tr></thead><tbody id="endBody"></tbody></table>
+    <div><button class="primary" id="againBtn" type="button">もう一度</button></div>
+  </div>
+</div>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const sgn = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v);
+const pick = a => a[Math.random() * a.length | 0];
+
+const TEMPS = [{ n: '氷河', c: '#3567bd' }, { n: '寒い', c: '#5d98d8' }, { n: 'おだやか', c: '#5a9a62' }, { n: '暑い', c: '#d98a3a' }, { n: '灼熱', c: '#c64a2e' }];
+const TR = {
+  fur:    { n: '厚い毛皮',     g: 'cold', v: [3, 2, 0, -1, -2] },
+  fat:    { n: '脂肪をためる', g: 'cold', v: [2, 1, 0, 0, -1] },
+  hiber:  { n: '冬眠',         g: 'cold', v: [2, 1, -1, 0, 0] },
+  sweat:  { n: '汗をかく',     g: 'hot',  v: [-2, -1, 0, 2, 3] },
+  thin:   { n: '薄い皮膚',     g: 'hot',  v: [-2, -1, 0, 1, 1] },
+  noct:   { n: '夜行性',       g: 'hot',  v: [-1, 0, 0, 1, 2] },
+  burrow: { n: '穴を掘る',     g: 'mid',  v: [1, 0, 0, 0, 1] },
+  calm:   { n: 'のんびり屋',   g: 'mid',  v: [-1, 0, 2, 0, -1] },
+  big:    { n: '大きな体',     g: 'mid',  v: [-2, 1, 1, 1, -2] },
+  omni:   { n: '雑食',         g: 'mid',  v: [0, 1, 1, 1, 0] },
+};
+const KIND = { cold: '寒さ向き', hot: '暑さ向き', mid: 'どこでも向き' };
+const ROUNDS = 7, SLOTS = 3, TARGETS = 2, CLIMATE_TURNS = [3, 6];
+
+// ---------- map: radius-2 hex, pointy top, r = -2 (north) .. 2 (south) ----------
+const cells = [];
+for (let r = -2; r <= 2; r++) for (let q = -2; q <= 2; q++) if (Math.abs(q + r) <= 2) cells.push({ q, r });
+cells.forEach((c, i) => c.name = 'ABCDEFGHIJKLMNOPQRS'[i]);
+const idx = new Map(cells.map((c, i) => [c.q + ',' + c.r, i]));
+const NB = cells.map(c => [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]].map(([dq, dr]) => idx.get((c.q + dq) + ',' + (c.r + dr))).filter(i => i !== undefined));
+const HS = 40, SQ3 = Math.sqrt(3);
+const cx = c => HS * SQ3 * (c.q + c.r / 2), cy = c => HS * 1.5 * c.r;
+const hexPts = (x, y, s) => Array.from({ length: 6 }, (_, k) => { const a = Math.PI / 180 * (60 * k - 30); return `${(x + s * Math.cos(a)).toFixed(1)},${(y + s * Math.sin(a)).toFixed(1)}`; }).join(' ');
+
+let S;
+const temp = i => clamp(cells[i].r + 2 + S.offset, 0, 4);
+const score = (tr, i) => tr.reduce((s, id) => s + TR[id].v[temp(i)], 0);
+const applyTrait = (t0, add, rep) => { const t = t0.slice(); if (!add) return t; if (rep) t[t.indexOf(rep)] = add; else t.push(add); return t; };
+const count = (owner, p) => owner.reduce((s, o) => s + (o === p), 0);
+function frontier(owner, p) { const f = new Set(); owner.forEach((o, i) => { if (o === p) NB[i].forEach(j => { if (owner[j] !== p) f.add(j); }); }); return [...f]; }
+function offer(tr) { return ['cold', 'hot', 'mid'].map(g => { const c = Object.keys(TR).filter(k => TR[k].g === g && !tr.includes(k)); return c.length ? pick(c) : null; }).filter(Boolean); }
+
+// same rules as the balance simulation
+function resolve(owner, trs, mv, withEvents) {
+  const no = owner.slice(), ev = [];
+  const tg = [new Set(mv[0].targets), new Set(mv[1].targets)];
+  for (const c of new Set([...tg[0], ...tg[1]])) {
+    const a = tg[0].has(c), b = tg[1].has(c), sa = score(trs[0], c), sb = score(trs[1], c), o = owner[c];
+    if (o === -1) {
+      if (a && b) { const w = sa > sb && sa >= 0 ? 0 : sb > sa && sb >= 0 ? 1 : -1; if (w >= 0) no[c] = w; ev.push({ c, type: 'clash', sa, sb, w }); }
+      else { const p = a ? 0 : 1, s = a ? sa : sb; if (s >= 0) no[c] = p; ev.push({ c, type: 'claim', p, s, ok: s >= 0 }); }
+    } else if (o === 1 && a) { const w = sa >= 0 && sa > sb ? 0 : 1; no[c] = w; ev.push({ c, type: 'attack', p: 0, sa, sb, w }); }
+    else if (o === 0 && b) { const w = sb >= 0 && sb > sa ? 1 : 0; no[c] = w; ev.push({ c, type: 'attack', p: 1, sa, sb, w }); }
+  }
+  const died = [[], []];
+  no.forEach((o, i) => { if (o !== -1 && score(trs[o], i) < 0) { died[o].push(i); no[i] = -1; } });
+  return withEvents ? { no, ev, died } : no;
+}
+
+// ---------- rival AI (the one tested in the simulation) ----------
+function moves(owner, p, tr, hand) {
+  const tops = [{ add: null, rep: null }];
+  for (const id of hand) { if (tr.length < SLOTS) tops.push({ add: id, rep: null }); else for (const r of tr) tops.push({ add: id, rep: r }); }
+  const fr = frontier(owner, p), out = [];
+  for (const t of tops) {
+    const ntr = applyTrait(tr, t.add, t.rep);
+    const cand = fr.slice().sort((a, b) => score(ntr, b) - score(ntr, a)).slice(0, 6);
+    const combos = [];
+    if (!cand.length) combos.push([]);
+    else if (cand.length === 1) combos.push([cand[0]]);
+    else for (let i = 0; i < cand.length; i++) for (let j = i + 1; j < cand.length; j++) combos.push([cand[i], cand[j]]);
+    for (const targets of combos) out.push({ t, tr: ntr, targets });
+  }
+  return out;
+}
+const net = (owner, p) => count(owner, p) - count(owner, 1 - p);
+function evalVs(owner, p, my, op) { return net(resolve(owner, p === 0 ? [my.tr, op.tr] : [op.tr, my.tr], p === 0 ? [my, op] : [op, my]), p); }
+const idle = tr => ({ t: { add: null, rep: null }, tr, targets: [] });
+function soft(arr, val, temp) { const vs = arr.map(val), mx = Math.max(...vs), ws = vs.map(v => Math.exp((v - mx) / temp)), tot = ws.reduce((a, b) => a + b, 0); let r = Math.random() * tot; for (let i = 0; i < arr.length; i++) { r -= ws[i]; if (r <= 0) return arr[i]; } return arr[arr.length - 1]; }
+function npcDecide() {
+  const owner = S.owner, me = S.P[0], npc = S.P[1];
+  const opMs = moves(owner, 0, me.tr, offer(me.tr));
+  const samples = Array.from({ length: 10 }, () => soft(opMs, m => evalVs(owner, 0, m, idle(npc.tr)), .5));
+  return soft(moves(owner, 1, npc.tr, npc.hand), m => samples.reduce((s, o) => s + evalVs(owner, 1, m, o), 0) / samples.length, .15);
+}
+
+// ---------- flow ----------
+function newGame() {
+  S = { round: 1, offset: 0, climate: {}, owner: cells.map(() => -1), P: [{ tr: [], hand: [] }, { tr: [], hand: [] }],
+        sel: { hi: null, trait: null, rep: null, targets: [] }, phase: 'choose', last: null, log: [], climateMsg: '' };
+  let off = 0;
+  for (const r of CLIMATE_TURNS) { const d = off <= -1 ? 1 : off >= 1 ? -1 : pick([-1, 1]); off += d; S.climate[r] = d; }
+  for (const k of ['-2,0', '-1,0', '-2,1']) S.owner[idx.get(k)] = 0;
+  for (const k of ['2,0', '1,0', '2,-1']) S.owner[idx.get(k)] = 1;
+  $('end').hidden = true;
+  startRound();
+}
+function startRound() {
+  S.climateMsg = '';
+  const d = S.climate[S.round];
+  if (d) {
+    S.offset += d;
+    const lost = [[], []];
+    S.owner.forEach((o, i) => { if (o !== -1 && score(S.P[o].tr, i) < 0) { lost[o].push(cells[i].name); S.owner[i] = -1; } });
+    S.climateMsg = `<b class="warn">${d < 0 ? '寒冷期が来た！すべてのマスが1段階寒くなった。' : '温暖期が来た！すべてのマスが1段階暑くなった。'}</b>`
+      + (lost[0].length || lost[1].length ? `<br>体に合わなくなって消えたマス：あなた ${lost[0].join('・') || 'なし'}　／　ライバル ${lost[1].join('・') || 'なし'}` : '');
+  }
+  S.P.forEach(p => p.hand = offer(p.tr));
+  S.phase = 'choose'; S.sel = { hi: null, trait: null, rep: null, targets: [] };
+  if (!count(S.owner, 0) || !count(S.owner, 1)) return endGame();
+  render();
+}
+function canConfirm() { const s = S.sel; return S.phase === 'choose' && (!s.trait || S.P[0].tr.length < SLOTS || s.rep); }
+function confirm() {
+  if (!canConfirm()) return;
+  const s = S.sel, me = S.P[0], npc = S.P[1], nd = npcDecide();
+  const before = [count(S.owner, 0), count(S.owner, 1)];
+  const myMove = { tr: applyTrait(me.tr, s.trait, s.rep), targets: s.targets.slice() };
+  me.tr = myMove.tr; npc.tr = nd.tr;
+  const res = resolve(S.owner, [me.tr, npc.tr], [myMove, nd], true);
+  const changed = S.owner.map((o, i) => o !== res.no[i]);
+  S.owner = res.no;
+  S.last = { ...res, myEvo: s.trait, myRep: s.rep, npcEvo: nd.t.add, npcRep: nd.t.rep, myTargets: myMove.targets, npcTargets: nd.targets, before, after: [count(S.owner, 0), count(S.owner, 1)], changed };
+  S.log.push({ round: S.round, after: S.last.after, myEvo: s.trait, npcEvo: nd.t.add });
+  S.phase = 'reveal';
+  render();
+}
+function next() {
+  if (S.round >= ROUNDS || !S.last.after[0] || !S.last.after[1]) return endGame();
+  S.round++; startRound();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function endGame() {
+  S.phase = 'end';
+  const a = count(S.owner, 0), b = count(S.owner, 1);
+  $('endTitle').textContent = !a && !b ? '両方とも絶滅' : !a ? 'あなたの種は絶滅した' : !b ? 'ライバルが絶滅した！' : a > b ? '大陸を制した！' : a === b ? '引き分け' : 'ライバルが繁栄した';
+  $('endSub').innerHTML = `あなた <b>${a}</b> マス　／　ライバル <b>${b}</b> マス`;
+  $('endBody').innerHTML = S.log.map(l => `<tr><td>第${l.round}世代</td><td>${l.after[0]}マス${l.myEvo ? '　' + TR[l.myEvo].n : ''}</td><td>${l.after[1]}マス${l.npcEvo ? '　' + TR[l.npcEvo].n : ''}</td></tr>`).join('');
+  render(); $('end').hidden = false; $('againBtn').focus();
+}
+
+// ---------- input ----------
+function toggleCell(i) {
+  if (S.phase !== 'choose') return;
+  const fr = frontier(S.owner, 0); if (!fr.includes(i)) return;
+  const t = S.sel.targets, k = t.indexOf(i);
+  if (k >= 0) t.splice(k, 1); else { if (t.length >= TARGETS) t.shift(); t.push(i); }
+  render();
+}
+document.addEventListener('click', e => {
+  const cell = e.target.closest('[data-cell]'); if (cell) { toggleCell(+cell.dataset.cell); return; }
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'startBtn') { $('rules').hidden = true; return; }
+  if (b.id === 'rulesBtn') { $('rules').hidden = false; $('startBtn').textContent = '閉じる'; return; }
+  if (b.id === 'againBtn') { newGame(); return; }
+  if (b.id === 'confirmBtn') { confirm(); return; }
+  if (b.id === 'nextBtn') { next(); return; }
+  if (S.phase !== 'choose') return;
+  const s = S.sel;
+  if (b.dataset.hi !== undefined) { const hi = +b.dataset.hi; if (s.hi === hi) { s.hi = null; s.trait = null; } else { s.hi = hi; s.trait = S.P[0].hand[hi]; } s.rep = null; }
+  else if (b.dataset.none !== undefined) { s.hi = null; s.trait = null; s.rep = null; }
+  else if (b.dataset.rep) s.rep = s.rep === b.dataset.rep ? null : b.dataset.rep;
+  else return;
+  render();
+});
+document.addEventListener('keydown', e => { const c = e.target.closest && e.target.closest('[data-cell]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleCell(+c.dataset.cell); } });
+
+// ---------- render ----------
+const valBg = v => { const p = Math.min(70, Math.abs(v) * 15); return v > 0 ? `color-mix(in srgb, var(--good) ${p}%, var(--cell))` : v < 0 ? `color-mix(in srgb, var(--bad) ${p}%, var(--cell))` : 'var(--cell)'; };
+const strip = vals => `<div class="strip">${vals.map(v => `<i style="background:${valBg(v)}">${sgn(v)}</i>`).join('')}</div>`;
+const stripHead = `<div class="stripHead">${TEMPS.map(t => `<span>${t.n}</span>`).join('')}</div>`;
+
+function render() { renderTop(); renderMap(); renderSide(); renderPanels(); }
+function renderTop() {
+  $('roundInfo').innerHTML = `第<b>${S.round}</b>世代 / ${ROUNDS}`;
+  $('scores').innerHTML = [[0, 'あなた', 'var(--me)'], [1, 'ライバル', 'var(--rival)']].map(([p, n, c]) =>
+    `<div class="score"><span class="who"><span class="dot" style="background:${c}"></span>${n}</span><span class="n">${count(S.owner, p)}<small> マス</small></span></div>`).join('');
+  const nd = S.climate[S.round + 1];
+  $('climate').innerHTML = [S.phase === 'choose' ? S.climateMsg : '', nd && S.phase === 'choose' ? `<b>予報：次の世代から${nd < 0 ? '寒冷期（すべてのマスが1段階寒くなる）' : '温暖期（すべてのマスが1段階暑くなる）'}</b>` : ''].filter(Boolean).join('<br>');
+}
+function renderMap() {
+  const choosing = S.phase === 'choose', s = S.sel, me = S.P[0], npc = S.P[1];
+  const myTr = choosing ? applyTrait(me.tr, s.trait, s.rep) : me.tr;
+  const myFr = choosing ? new Set(frontier(S.owner, 0)) : new Set(), rvFr = choosing ? new Set(frontier(S.owner, 1)) : new Set();
+  const L = S.last;
+  let h = '';
+  for (let r = -2; r <= 2; r++) {
+    const t = clamp(r + 2 + S.offset, 0, 4);
+    h += `<text x="-244" y="${HS * 1.5 * r + 4}" font-size="12" font-weight="700" fill="${TEMPS[t].c}">${TEMPS[t].n}</text>`;
+  }
+  h += `<text x="-244" y="-150" font-size="10" fill="var(--muted)">北</text><text x="-244" y="160" font-size="10" fill="var(--muted)">南</text>`;
+  cells.forEach((c, i) => {
+    const x = cx(c), y = cy(c), o = S.owner[i], can = choosing && myFr.has(i);
+    const ms = score(myTr, i), rs = score(npc.tr, i);
+    const tIdx = s.targets.indexOf(i);
+    h += `<g data-cell="${i}" class="${can ? 'can' : ''}" ${can ? `tabindex="0" role="button" aria-label="${c.name}を狙う"` : ''}>`;
+    h += `<polygon class="hex" points="${hexPts(x, y, HS - 1)}" fill="${TEMPS[temp(i)].c}"/>`;
+    if (o !== -1) {
+      h += `<polygon points="${hexPts(x, y, HS - 5)}" fill="none" stroke="${o ? 'var(--rival)' : 'var(--me)'}" stroke-width="5"/>`;
+      h += `<circle cx="${x}" cy="${y - 2}" r="11" fill="${o ? 'var(--rival)' : 'var(--me)'}" stroke="#fff" stroke-width="2"/>`;
+      if (choosing && o === 0 && ms < 0) h += `<text x="${x}" y="${y + 3}" font-size="14" font-weight="700" text-anchor="middle" fill="#fff">×</text>`;
+    }
+    if (can) h += `<polygon points="${hexPts(x, y, HS - 6)}" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="3 3" opacity=".8"/>`;
+    if (choosing && rvFr.has(i)) h += `<circle cx="${x + 20}" cy="${y - 20}" r="4.5" fill="var(--rival)" stroke="#fff" stroke-width="1.5"/>`;
+    if (tIdx >= 0) h += `<polygon points="${hexPts(x, y, HS - 4)}" fill="rgba(255,255,255,.18)" stroke="#fff" stroke-width="3.5" stroke-dasharray="7 4"/><text x="${x}" y="${y + 4}" font-size="13" font-weight="700" text-anchor="middle" fill="#fff">狙う</text>`;
+    if (!choosing && L) {
+      if (L.myTargets.includes(i)) h += `<polygon points="${hexPts(x, y, HS - 4)}" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="7 4"/>`;
+      if (L.npcTargets.includes(i)) h += `<polygon points="${hexPts(x, y, HS - 9)}" fill="none" stroke="var(--rival)" stroke-width="3" stroke-dasharray="4 3"/>`;
+      if (L.changed[i]) h += `<polygon class="changed" points="${hexPts(x, y, HS - 2)}" fill="none" stroke="var(--gold)"/>`;
+    }
+    h += `<text x="${x}" y="${y - 20}" font-size="11" font-weight="700" text-anchor="middle" fill="#fff" opacity=".9">${c.name}</text>`;
+    h += `<text x="${x - 11}" y="${y + 25}" font-size="11.5" font-weight="700" text-anchor="middle" fill="#fff" stroke="var(--me)" stroke-width="3" paint-order="stroke">${sgn(ms)}</text>`;
+    h += `<text x="${x + 11}" y="${y + 25}" font-size="11.5" font-weight="700" text-anchor="middle" fill="#fff" stroke="var(--rival)" stroke-width="3" paint-order="stroke">${sgn(rs)}</text>`;
+    h += '</g>';
+  });
+  $('map').innerHTML = h;
+  $('legend').innerHTML = choosing
+    ? `<span><b style="color:var(--me)">左の数字</b>＝あなたの体の点数${s.trait ? '（進化後）' : ''}</span><span><b style="color:var(--rival)">右の数字</b>＝ライバルの体の点数</span><span>点線のマス＝狙える（タップ）</span><span><span class="dot" style="background:var(--rival)"></span>＝ライバルも狙える</span><span>×＝この進化だと消えるマス</span>`
+    : `<span>白い点線＝あなたが狙ったマス</span><span style="color:var(--rival)">赤い点線＝ライバルが狙ったマス</span><span>光っているマス＝持ち主が変わった</span>`;
+}
+function renderSide() {
+  const el = $('side'), s = S.sel, me = S.P[0];
+  if (S.phase === 'choose') {
+    const full = me.tr.length >= SLOTS, needRep = s.trait && full && !s.rep;
+    const cards = me.hand.map((id, i) => `<button type="button" class="card ${s.hi === i ? 'on' : ''}" data-hi="${i}"><span class="kind">${KIND[TR[id].g]}</span><span class="cn">${TR[id].n}</span>${stripHead}${strip(TR[id].v)}</button>`).join('')
+      + `<button type="button" class="card ${s.trait ? '' : 'on'}" data-none="1"><span class="kind">そのまま</span><span class="cn">進化しない</span><span class="note">今の体のまま</span></button>`;
+    const lost = s.trait ? S.owner.map((o, i) => o === 0 && score(applyTrait(me.tr, s.trait, s.rep), i) < 0 ? cells[i].name : null).filter(Boolean) : [];
+    el.innerHTML = `
+      <div class="step ${s.trait ? 'done' : ''}"><h3><span class="no">1</span>進化を選ぶ <span class="sub">気温ごとの点数が体に足される</span></h3>
+        <div class="cards">${cards}</div>
+        ${lost.length ? `<div class="warn">この進化だと、あなたのマス ${lost.join('・')} から種が消えます</div>` : ''}
+        ${s.trait && full ? `<div class="${needRep ? 'warn' : 'status'}">体の特性は${SLOTS}つまで。${needRep ? '下の「あなたの体」から、捨てる特性を選んでください' : `${TR[s.rep].n}を捨てます`}</div>` : ''}</div>
+      <div class="step ${s.targets.length ? 'done' : ''}"><h3><span class="no">2</span>広がる先を選ぶ <span class="sub">地図の点線のマスを${TARGETS}つまでタップ</span></h3>
+        <div class="targets">${s.targets.length ? s.targets.map(i => { const ms = score(applyTrait(me.tr, s.trait, s.rep), i), rs = score(S.P[1].tr, i), o = S.owner[i];
+            const note = ms < 0 ? '<span class="warn">体が合わず住めない</span>' : o === 1 ? (ms > rs ? '攻めれば奪える（今のライバルの体なら）' : '<span class="warn">守る側が強い</span>') : '空きマス。ライバルも狙えば点数勝負';
+            return `<span class="tchip">${cells[i].name}</span><span class="status">あなた ${sgn(ms)} 対 ライバル ${sgn(rs)}：${note}</span>`; }).join('<br>') : '<span class="status">まだ選んでいません</span>'}</div></div>
+      <div class="actions"><button type="button" class="primary" id="confirmBtn" ${canConfirm() ? '' : 'disabled'}>決定</button>
+        <span class="status">${needRep ? '捨てる特性を選んでください' : s.targets.length < TARGETS ? `あと${TARGETS - s.targets.length}マス選べます` : 'ライバルはどこを狙ってくる？'}</span></div>`;
+    return;
+  }
+  const L = S.last;
+  const nm = i => `<b>${cells[i].name}</b>`;
+  const items = L.ev.map(e => {
+    if (e.type === 'claim') return `<li class="${e.p ? 'rv' : 'me'}">${e.p ? 'ライバル' : 'あなた'}が${nm(e.c)}${e.ok ? 'に広がった' : 'を狙ったが、体が合わず住めなかった'}</li>`;
+    if (e.type === 'clash') return `<li class="fight">${nm(e.c)}を両方が狙った：あなた ${sgn(e.sa)} 対 ライバル ${sgn(e.sb)} → ${e.w === 0 ? '<b>あなたが取った</b>' : e.w === 1 ? '<b>ライバルが取った</b>' : 'どちらも取れなかった'}</li>`;
+    const atk = e.p === 0;
+    return `<li class="fight">${atk ? 'あなたがライバルの' : 'ライバルがあなたの'}${nm(e.c)}に攻め込んだ：あなた ${sgn(e.sa)} 対 ライバル ${sgn(e.sb)} → ${atk ? (e.w === 0 ? '<b>奪った！</b>' : '守られた') : (e.w === 1 ? '<b>奪われた</b>' : '守りきった')}</li>`;
+  });
+  if (L.died[0].length || L.died[1].length) items.push(`<li>体に合わなくなって消えたマス：あなた ${L.died[0].map(i => cells[i].name).join('・') || 'なし'}　／　ライバル ${L.died[1].map(i => cells[i].name).join('・') || 'なし'}</li>`);
+  if (!items.length) items.push('<li>どちらも広がらなかった</li>');
+  const d0 = L.after[0] - L.before[0];
+  const msg = d0 >= 3 ? ['大きく広がった！', 'var(--gold)'] : d0 > 0 ? ['広がった', 'var(--good)'] : d0 === 0 ? ['変わらず', 'var(--muted)'] : ['陣地が減った…', 'var(--bad)'];
+  el.innerHTML = `
+    <h3 style="margin:0">第${S.round}世代の結果</h3>
+    <div class="status">あなた：${L.myEvo ? `${TR[L.myEvo].n}に進化${L.myRep ? `（${TR[L.myRep].n}を捨てた）` : ''}` : '進化しなかった'}<br>ライバル：${L.npcEvo ? `<b>${TR[L.npcEvo].n}</b>に進化${L.npcRep ? `（${TR[L.npcRep].n}を捨てた）` : ''}` : '進化しなかった'}</div>
+    <ul class="events">${items.join('')}</ul>
+    <div class="actions"><span class="bigMsg" style="color:${msg[1]}">${msg[0]}</span><span class="status">あなた ${L.before[0]}→${L.after[0]}マス　ライバル ${L.before[1]}→${L.after[1]}マス</span></div>
+    ${S.phase === 'reveal' ? `<div><button type="button" class="primary" id="nextBtn">${S.round >= ROUNDS || !L.after[0] || !L.after[1] ? '結果を見る' : '次の世代へ'}</button></div>` : ''}`;
+}
+function renderPanels() {
+  const me = S.P[0], npc = S.P[1], s = S.sel, picking = S.phase === 'choose' && s.trait && me.tr.length >= SLOTS;
+  const list = (p, isMe) => Array.from({ length: SLOTS }, (_, i) => {
+    const id = p.tr[i]; if (!id) return `<div class="trait empty">空き</div>`;
+    const on = isMe && s.rep === id, can = isMe && picking;
+    return `<button type="button" class="trait ${can ? 'pick' : ''} ${on ? 'rep' : ''}" data-rep="${id}" ${can ? '' : 'disabled'}><span class="nm">${TR[id].n}</span>${strip(TR[id].v)}${on ? '<span class="repTag">捨てる</span>' : ''}</button>`;
+  }).join('');
+  const total = tr => [0, 1, 2, 3, 4].map(t => tr.reduce((a, id) => a + TR[id].v[t], 0));
+  $('mePanel').innerHTML = `<div class="lbl"><span class="dot" style="background:var(--me)"></span> あなたの体（${me.tr.length}/${SLOTS}）</div>${stripHead}<div class="traitList">${list(me, true)}</div><div class="lbl">合計</div>${strip(total(me.tr))}`;
+  $('npcPanel').innerHTML = `<div class="lbl"><span class="dot" style="background:var(--rival)"></span> ライバルの体（${npc.tr.length}/${SLOTS}）　進化の候補は伏せられている</div>${stripHead}<div class="traitList">${list(npc, false)}</div><div class="lbl">合計</div>${strip(total(npc.tr))}`;
+}
+
+newGame();
+})();
+</script>
