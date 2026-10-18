@@ -50,6 +50,7 @@
 | `faces/` | パイロットの顔（ex-online） |
 | `tex/` | 地面とビルのテクスチャ（ex-online） |
 | `tools/extract-parts.js` | 機体の .glb の細かいモデル（`xs_body`。細かさを落としたモデルはひじ・ひざが無く ORB も粗い）と光る部分を、格納庫の立ち姿（ex-online の STAND、いわゆるカトキ立ち）に骨で曲げ、ORB をラックから下向きに吊るしてから、頭・胴・左腕・右腕・下半身に切り出す。各頂点がどの塗装枠（主装甲・副装甲・アクセント）かも記録する。武器の .glb も切り出す |
+| `tools/bump.js` | 読み込むファイルの版番号（`?v=`）を付け直す |
 | `tools/shots.js` `tools/shoot.js` | README のスクリーンショットを撮る（下を参照） |
 | `tools/robosim.js` | 性格を読むと得をするかの対戦シミュレーション |
 | `tools/robosim2.js` | CPU がこちらのクセを読んだときのシミュレーション |
@@ -70,6 +71,14 @@ python -m http.server 8767
 ```
 
 `http://localhost:8767/robot-battle.html` を開きます。
+
+## 公開する前に
+
+ページが読み込むスクリプトとスタイルには `?v=` の版番号を付けています。更新したら、ブラウザに古いファイルが残らないよう番号を付け直します（古い `fx.js` と新しい `game.js` が混ざって動かなくなったことがあります）。
+
+```bash
+node tools/bump.js
+```
 
 ## スクリーンショットを撮り直す
 

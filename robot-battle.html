@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
-<link rel="stylesheet" href="game.css">
+<link rel="stylesheet" href="game.css?v=202610181108">
 </head>
 <body>
 <div id="bg" aria-hidden="true"></div>
@@ -20,7 +20,7 @@
     <h1 class="logo"><span class="l1">ROBOT</span><span class="l2">BATTLE</span><span class="lj">ロボットバトル</span></h1>
     <p class="tagline">部位カードで組め。読め。撃ち抜け。</p>
     <button type="button" class="startBtn" id="startBtn">TAP TO START</button>
-    <button type="button" class="linkBtn" id="titleRules">遊び方</button>
+    <div class="titleLinks"><button type="button" class="linkBtn" id="titleRules">遊び方</button><button type="button" class="linkBtn" data-collection>これまでのXS</button></div>
   </div>
   <p class="credit">BGM: Made with Suno ／ 機体・効果音: ex-online</p>
 </section>
@@ -31,6 +31,7 @@
     <div class="hudBrand">ROBOT<b>BATTLE</b></div>
     <div class="series" id="seriesInfo"></div>
     <div class="hudBtns">
+      <button type="button" class="iconBtn colBtn" data-collection aria-label="これまでのXS">XS</button>
       <button type="button" class="iconBtn" id="rulesBtn" aria-label="遊び方">？</button>
     </div>
   </header>
@@ -39,13 +40,14 @@
 </section>
 
 <div class="overlay" id="rules" hidden></div>
+<div class="overlay" id="collection" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="robot-parts.js"></script>
-<script src="sfx.js"></script>
-<script src="fx.js"></script>
-<script src="robo3d.js"></script>
-<script src="battle3d.js"></script>
-<script src="game.js"></script>
+<script src="robot-parts.js?v=202610181108"></script>
+<script src="sfx.js?v=202610181108"></script>
+<script src="fx.js?v=202610181108"></script>
+<script src="robo3d.js?v=202610181108"></script>
+<script src="battle3d.js?v=202610181108"></script>
+<script src="game.js?v=202610181108"></script>
 </body>
 </html>

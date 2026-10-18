@@ -8,7 +8,7 @@ const root = path.join(__dirname, '..');
 const CHROME = process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const PORT = process.env.PORT || 8767, OUT = process.env.OUT || path.join(root, 'docs');
 const scenes = process.argv.slice(2).length ? process.argv.slice(2) : ['title', 'vs', 'deal', 'hangar', 'sortie', 'battle'];
-const page = fs.readFileSync(path.join(root, 'robot-battle.html'), 'utf8').replace('<script src="game.js"></script>', '<script src="game.js"></script>\n<script src="tools/shots.js"></script>');
+const page = fs.readFileSync(path.join(root, 'robot-battle.html'), 'utf8').replace(/<script src="game\.js[^"]*"><\/script>/, m => m + '\n<script src="tools/shots.js"></script>');
 fs.writeFileSync(path.join(root, 'shots.html'), page);
 (async () => {
   const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', args: ['--enable-unsafe-swiftshader', '--hide-scrollbars', '--mute-audio', '--autoplay-policy=no-user-gesture-required'] });
@@ -19,7 +19,7 @@ fs.writeFileSync(path.join(root, 'shots.html'), page);
       const p = await browser.newPage();
       await p.setViewport({ width: +process.env.W || 1280, height: +process.env.H || 800 });
       await p.goto(`http://localhost:${PORT}/shots.html?shot=${name}&at=${ms}${process.env.Q ? '&' + process.env.Q : ''}`, { waitUntil: 'load' });
-      await p.waitForFunction(() => document.title === 'FROZEN', { timeout: 90000 });
+      await p.waitForFunction(() => document.title === 'FROZEN', { timeout: 300000 });
       const file = path.join(OUT, name + '.jpg');
       await p.screenshot({ path: file, type: 'jpeg', quality: 85 });
       console.log(file);

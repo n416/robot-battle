@@ -175,6 +175,9 @@ document.addEventListener('click', async e => {
   if (b.id === 'titleRules' || b.id === 'rulesBtn') { SFX.unlock(); openHelp(b.id === 'titleRules' ? 0 : helpForScreen()); return; }
   if (b.id === 'closeRules') { $('rules').hidden = true; return; }
   if (b.dataset.help !== undefined) { showHelp(+b.dataset.help); SFX.tone(660, .04, { type: 'triangle', vol: .06 }); return; }
+  if (b.dataset.collection !== undefined) { SFX.unlock(); openCollection(); return; }
+  if (b.dataset.colPick !== undefined) { showCollection(+b.dataset.colPick); SFX.play('clamp_2', { vol: .4 }); return; }
+  if (b.id === 'closeCollection') { $('collection').hidden = true; return; }
   if (!S || busy) return;
   const g = S.g;
   if (S.phase === 'design') {
@@ -469,6 +472,7 @@ async function gameEnd() {
   const g = S.g, w = g.score[0] > g.score[1] ? 0 : g.score[1] > g.score[0] ? 1 : 2;
   S.wins[w]++;
   S.games.push(gameRecord());
+  keepRobots();
   S.phase = 'gameEnd'; render();
   if (w === 0) { SFX.fanfare(true); SFX.play('techgreat_1'); FX.confetti(220); FX.flash('#ffd23f', 400, .5); setTimeout(() => FX.confetti(120), 900); }
   else if (w === 1) SFX.play('techfail_1');
@@ -538,7 +542,7 @@ function tagsHTML(r, s, o = {}) {
 function seriesHTML() {
   const g = S.g;
   const pips = (n, cls) => `<span class="pips ${cls}">${[0, 1].map(i => `<span class="pip ${i < n ? 'on' : ''}"></span>`).join('')}</span>`;
-  return `<span class="gameNo">第${Math.min(S.game, GAMES)}試合</span><span class="me">あなた ${pips(S.wins[0], 'me')}</span><span>vs</span><span class="rv">${pips(S.wins[1], 'rv')} ${S.rivalName}</span><img src="${S.rivalFace}" alt="">`;
+  return `<span class="gameNo">第${Math.min(S.game, GAMES)}試合<small> / ${GAMES}</small></span><span class="me">あなた ${pips(S.wins[0], 'me')}</span><span>vs</span><span class="rv">${pips(S.wins[1], 'rv')} ${S.rivalName}</span><img src="${S.rivalFace}" alt="">`;
 }
 function render() {
   const g = S.g, main = $('main');
@@ -572,12 +576,16 @@ function render() {
     main.innerHTML = `<section class="panel result endTop"><div class="big ${w}">${w === 'win' ? 'VICTORY!!' : w === 'lose' ? 'DEFEAT' : 'DRAW'}</div>
       <div class="score"><span class="m">${g.score[0]}</span> ― <span class="r">${g.score[1]}</span></div>
       <div class="recaps">${recap}</div>
-      <button type="button" class="bigBtn go" id="nextGameBtn">${S.game < GAMES ? `第${S.game + 1}試合へ` : `${S.rivalName}の性格を当てる`}</button></section>
+      ${stepsHTML()}
+      <button type="button" class="bigBtn go" id="nextGameBtn">${S.game < GAMES - 1 ? `第${S.game + 1}試合へ<small>あと${GAMES - S.game}試合で決着</small>` : S.game < GAMES ? '最終戦へ！<small>これで決着</small>' : `${S.rivalName}の性格を当てる<small>いよいよ最後</small>`}</button></section>
       ${hintsHTML()}`;
     return;
   }
   // battle: the sortie deck. Rival units on top, the face-off stage in the middle, your units and the launch button below
   const me = mySt(), rk = ranks(g.cpuSt), myRk = ranks(me);
+  // the last round: one unit left each, nothing to choose
+  const last = g.round === 2;
+  if (last && g.sel === null) g.sel = [0, 1, 2].find(i => !g.myUsed.includes(i));
   $('msg').hidden = true;
   const unit = (side, r, s, k, rank, used, sel, pilot) => {
     const rv = side === 'rv';
@@ -607,7 +615,7 @@ function render() {
         <div class="stageSide rv"><img class="rvFace" src="${S.rivalFace}" alt=""><div class="qMark">?</div><div class="stageName rv">${S.rivalName}<span class="rvSay">「${rivalSay()}」</span></div></div>
       </div>
       <div class="dock"><div class="stripLabel me">YOUR UNITS</div><div class="units">${myRow}</div>
-        <button type="button" class="launchBtn" id="sortieBtn" ${g.sel === null ? 'disabled' : ''}><span>出撃</span><small>${g.sel === null ? '機体を選択' : 'LAUNCH!'}</small></button></div>
+        <button type="button" class="launchBtn" id="sortieBtn" ${g.sel === null ? 'disabled' : ''}><span>${last ? '最終戦' : '出撃'}</span><small>${last ? '残る1機で決着！' : g.sel === null ? '機体を選択' : 'LAUNCH!'}</small></button></div>
     </div>`;
 }
 // what the rival says beside its face on the sortie screen: by the units both sides have left, how the pairings go for
@@ -637,6 +645,13 @@ function modal(title, html) {
   document.body.append(d);
 }
 // ---------- hints after each game: the rival's habit so far, how well each personality fits it, and a word on yours ----------
+// where the series is: the three games (done ones with their score), then the guess
+function stepsHTML() {
+  const done = S.games.length;
+  const step = (lab, st, extra = '') => `<span class="step ${st}">${lab}${extra}</span>`;
+  return `<div class="steps">${[1, 2, 3].map(n => { const G = S.games[n - 1];
+    return step(`第${n}試合`, G ? 'done' : n === done + 1 ? 'next' : '', G ? `<small>${G.score[0]}-${G.score[1]}</small>` : ''); }).join('<i>›</i>')}<i>›</i>${step('性格当て', done === GAMES ? 'next' : '')}</div>`;
+}
 function hintsHTML() {
   const H = S.history, name = S.rivalName;
   // what each side sent in each round, game by game: one row a round, one badge a game (the same badge again and again is a habit)
@@ -698,6 +713,7 @@ function renderEnd(main) {
     <section class="panel"><h2>あなたの機体</h2><div id="gallery">${galleryHTML()}</div></section>
     <section class="panel finCta"><div class="shareRow"><button type="button" class="subBtn" id="shareX">𝕏 でシェア</button><button type="button" class="subBtn" id="shareCopy">結果をコピー</button></div>
       <button type="button" class="bigBtn go" id="againBtn">もう一度遊ぶ（別の相手）</button>
+      <button type="button" class="subBtn" data-collection>これまでのXSを見る</button>
       <div class="linkRow"><a class="ctaLink" href="https://extendsuit.com/" target="_blank" rel="noopener">本体のサイトを見る ›</a><a class="ctaLink yt" href="https://www.youtube.com/@416gamedev" target="_blank" rel="noopener">開発の状況を見る ›</a></div></section>
     <section class="panel"><details class="more"><summary>出し方の記録</summary>${hist}</details></section>`;
 }
@@ -761,6 +777,41 @@ function showHelp(i) {
 }
 function openHelp(i) { showHelp(i); $('rules').hidden = false; }
 $('rules').addEventListener('click', e => { if (e.target === $('rules')) $('rules').hidden = true; });
+// ---------- the robots you have built, kept in this browser: every game's three, with how each one's fight went ----------
+const COL_KEY = 'rb-collection', COL_MAX = 300;
+function loadCollection() { try { return JSON.parse(localStorage.getItem(COL_KEY) || '[]'); } catch (e) { return []; } }
+function keepRobots() {
+  const g = S.g, me = mySt(), list = loadCollection(), day = new Date().toISOString().slice(0, 10);
+  g.robots.forEach((r, k) => {
+    const round = g.myUsed.indexOf(k);
+    list.push({ parts: Object.fromEntries(PARTS.map(p => [p, { m: r[p].m, v: r[p].v }])), k, st: me[k], pilot: g.pilotAt === k, rival: S.rivalName, game: S.game, r: round < 0 ? null : g.results[round], day });
+  });
+  try { localStorage.setItem(COL_KEY, JSON.stringify(list.slice(-COL_MAX))); } catch (e) {}
+}
+const colPics = {};
+function colPic(x) {
+  const key = JSON.stringify([x.parts, x.k]);
+  if (!colPics[key] && ROBO) { const rig = rigFor(modelsOf(x.parts), MY_SCHEMES[x.k] || 'tricolor'); rig.setPaint(1); rig.setLights(true); rig.pose({ aim: .2 }); colPics[key] = ROBO.snapshot(rig, -.5, { cy: .53, dist: 2.5, h: .1 }); }
+  return colPics[key] || '';
+}
+let colAt = 0;
+function openCollection() { colAt = 0; showCollection(0); $('collection').hidden = false; }
+function showCollection(i) {
+  const list = loadCollection().reverse(), wins = list.filter(x => x.r > 0).length;
+  colAt = Math.max(0, Math.min(i, list.length - 1));
+  const res = r => r == null ? '' : `<span class="resChip ${r > 0 ? 'w' : r < 0 ? 'l' : 'd'}">${r > 0 ? '勝' : r < 0 ? '負' : '分'}</span>`;
+  const x = list[colAt];
+  const big = x ? `<div class="colBig">${viewCanvas(paintedView(x.parts, MY_SCHEMES[x.k] || 'tricolor', 5, { spin: true, aim: .3, frame: { cy: .55, dist: 2.6, h: .1 } }), 'galBot')}
+      <div class="galInfo"><b>ROBOT ${x.k + 1}</b><span class="colWhen">${x.day}　対 ${x.rival}　第${x.game}試合</span>
+        <div>${res(x.r)}${x.pilot ? '<span class="tag pilot">搭乗</span>' : ''}${x.st.set ? '<span class="tag set">SET</span>' : ''}</div>
+        <span class="wpn">${weaponOf(x.parts)}</span>
+        <div class="galStats"><span class="s">索敵<b>${x.st.s}</b></span><span class="a">攻撃<b>${x.st.a}</b></span><span class="d">防御<b>${x.st.d}</b></span></div>
+        <div class="galParts">${PARTS.map(p => `<span><i class="chip ${x.parts[p].m}">${x.parts[p].m}</i>${PNAME[p]} ${x.parts[p].v}</span>`).join('')}</div></div></div>` : '';
+  $('collection').innerHTML = `<div class="dialog colDialog"><div class="helpTop"><h2>これまでのXS <span class="sub">${list.length}体（出撃して勝った ${wins}体）</span></h2><button type="button" class="helpX" id="closeCollection" aria-label="閉じる">×</button></div>
+    ${list.length ? big + `<div class="colGrid">${list.map((y, j) => `<button type="button" class="colItem ${j === colAt ? 'on' : ''}" data-col-pick="${j}"><img src="${colPic(y)}" alt=""><span class="colStat">${y.st.s}/${y.st.a}/${y.st.d}</span>${res(y.r)}</button>`).join('')}</div>`
+      : '<p class="hint" style="text-align:left">まだありません。試合を終えると、組んだロボットがここに並びます。</p>'}</div>`;
+}
+$('collection').addEventListener('click', e => { if (e.target === $('collection')) $('collection').hidden = true; });
 // ---------- the sound control: a button in the corner on every screen (over the battle too), opening sliders ----------
 (() => {
   const w = document.createElement('div'); w.className = 'volCtl';

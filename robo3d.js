@@ -263,5 +263,7 @@ window.ROBO = (() => {
     shot(wrap, 0, 0, Math.max(sz.x, sz.y, sz.z * .7) * 2.5, -.6, .25);
     return thumbs[k] = renderer.domElement.toDataURL('image/png');
   }
-  return { Rig, SCHEMES, WEAPON_OF, WEAPON_KIND, WEAPON_NAME, draw, thumb, lin };
+  // a still picture of a rig, as a data URL (the list of the robots you have built)
+  function snapshot(rig, yaw = -.5, frame) { const c = document.createElement('canvas'); draw(c, rig, yaw, frame); return c.toDataURL('image/png'); }
+  return { Rig, SCHEMES, WEAPON_OF, WEAPON_KIND, WEAPON_NAME, draw, thumb, snapshot, lin };
 })();

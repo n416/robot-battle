@@ -19,6 +19,10 @@
     sortie: async () => { await toSortie(); $('[data-pick="0"]').click(); await sl(at || 900); },
     reveal: async () => { await toSortie(); $('[data-pick="0"]').click(); await sl(300); $('#sortieBtn').click(); await sl(at || 2900); },
     help: async () => { await toSortie(); $('#rulesBtn').click(); await sl(at || 500); },
+    last3: async () => { await toSortie();
+      for (let r = 0; r < 2; r++) { while (!$('[data-pick]')) await sl(100); await sl(2600); $('[data-pick]').click(); await sl(200); $('#sortieBtn').click();
+        while (!$('.bSkip')) await sl(100); $('.bSkip').click(); while (!$('.bTap:not([hidden])')) await sl(100); await sl(200); $('.battleOverlay').click(); while ($('.battleOverlay')) await sl(100); }
+      await sl(at || 1500); },
     gameend: async () => { await toSortie();
       for (let r = 0; r < 3; r++) { while (!$('[data-pick]')) await sl(100); await sl(2600); $('[data-pick]').click(); await sl(200); $('#sortieBtn').click();
         while (!$('.bSkip')) await sl(100); $('.bSkip').click(); while (!$('.bTap:not([hidden])')) await sl(100); await sl(200); $('.battleOverlay').click(); while ($('.battleOverlay')) await sl(100); }
@@ -28,7 +32,8 @@
         for (let r = 0; r < 3; r++) { while (!$('[data-pick]')) await sl(100); await sl(2600); $('[data-pick]').click(); await sl(200); $('#sortieBtn').click();
           while (!$('.bSkip')) await sl(100); $('.bSkip').click(); while (!$('.bTap:not([hidden])')) await sl(100); await sl(200); $('.battleOverlay').click(); while ($('.battleOverlay')) await sl(100); }
         while (!$('#nextGameBtn')) await sl(100); await sl(800); $('#nextGameBtn').click(); }
-      while (!$('[data-guess]')) await sl(100); $('[data-guess]').click(); await sl(at || 2500); },
+      while (!$('[data-guess]')) await sl(100); $('[data-guess]').click(); await sl(scene === 'finale' ? (at || 2500) : 800); },
+    collection: async () => { await S.finale(); $('[data-collection]') && document.querySelectorAll('[data-collection]')[document.querySelectorAll('[data-collection]').length - 1].click(); await sl(at || 1500); },
     battle: async () => {
       await sl(300);
       const u = new URLSearchParams(location.search).get('upper') || 'geo3';
