@@ -16,11 +16,11 @@
 
    ![カード配り](docs/deal.jpg)
 
-3. 格納庫で組み立て。部位がはまり、3つそろうと機体がチームカラーに塗られる。同じメーカーでそろえると SET BONUS。パイロットは各ロボットの「ここに乗せる」で乗せる（上がる能力が出る）
+3. 格納庫で組み立て。部位がはまり、3つそろうと機体がチームカラーに塗られる。同じメーカーでそろえると SET BONUS。パイロットは各ロボットの「ここに乗せる」で乗せる（上がる能力が出る）。下半身カードのいくつかはホバー脚（数字は同じ、脚が浮いてジェットで滑る）
 
    ![格納庫](docs/seats.jpg)
 
-4. 設計図公開 → 出撃するロボットを選ぶ
+4. 設計図公開 → 出撃するロボットを選ぶ → 相手の出した機体がめくれる
 
    ![出撃選択](docs/sortie.jpg)
 
@@ -29,6 +29,8 @@
    ![戦闘](docs/battle.jpg)
 
 6. 3試合のあと、相手の性格を当てる
+
+「？」でいまの画面の説明カードが開き、ほかの説明もめくれる。音量は右上（戦闘中は右下）のボタンで、BGM と効果音を別々に変えられる。
 
 画像は `tools/shoot.js` で撮り直せます（下の「スクリーンショットを撮り直す」）。
 
@@ -56,10 +58,10 @@
 ## 3Dパーツを作り直す
 
 ```bash
-node tools/extract-parts.js C:/Users/nakam/ex-online/public/models robot-parts.js geo3=a_raid.glb geo2=a_heavy.glb geo1=a_support.glb tsui3=b_raid.glb tsui2=b_heavy.glb tsui1=b_support.glb ana3=a_sniper.glb ana2=b_sniper.glb ana1=a_aqua.glb w:beam_rifle=w_a_beam_rifle.glb w:bazooka=w_a_heavy_bazooka.glb w:machine_gun=w_a_machine_gun.glb w:heat_sword=w_b_heat_sword.glb w:giant_bazooka=w_b_giant_bazooka.glb w:gatling=w_b_gatling.glb w:beam_sniper=w_a_beam_sniper.glb w:sniper_rifle=w_b_sniper_rifle.glb w:missile=w_a_aqua_missile.glb
+node tools/extract-parts.js C:/Users/nakam/ex-online/public/models robot-parts.js geo3=a_raid.glb geo2=a_heavy.glb geo1=a_support.glb tsui3=b_raid.glb tsui2=b_heavy.glb tsui1=b_support.glb ana3=a_sniper.glb ana2=b_sniper.glb ana1=a_aqua.glb geo3h=a_raid_hover.glb:lower tsui3h=b_raid_hover.glb:lower tsui2h=b_heavy_hover.glb:lower ana1h=b_aqua_heavy_hover.glb:lower w:beam_rifle=w_a_beam_rifle.glb w:bazooka=w_a_heavy_bazooka.glb w:machine_gun=w_a_machine_gun.glb w:heat_sword=w_b_heat_sword.glb w:giant_bazooka=w_b_giant_bazooka.glb w:gatling=w_b_gatling.glb w:beam_sniper=w_a_beam_sniper.glb w:sniper_rifle=w_b_sniper_rifle.glb w:missile=w_a_aqua_missile.glb
 ```
 
-`ジオ`→`geo`、`ツイ`→`tsui`、`アナ`→`ana` に、カードの値（1〜3）を付けた名前が、どの機体のパーツを使うかを表します。`w:` が付いたものは武器です。どの上半身がどの武器を持つかは `robo3d.js` の `WEAPON_OF` にあります。
+`ジオ`→`geo`、`ツイ`→`tsui`、`アナ`→`ana` に、カードの値（1〜3）を付けた名前が、どの機体のパーツを使うかを表します。`w:` が付いたものは武器、`:lower` を付けたものは下半身だけ（ホバー脚）です。どの上半身がどの武器を持つかは `robo3d.js` の `WEAPON_OF` にあります。
 
 ## 手元で動かす
 

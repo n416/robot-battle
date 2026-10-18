@@ -31,7 +31,6 @@
     <div class="hudBrand">ROBOT<b>BATTLE</b></div>
     <div class="series" id="seriesInfo"></div>
     <div class="hudBtns">
-      <button type="button" class="iconBtn" id="muteBtn" aria-label="音を切る">🔊</button>
       <button type="button" class="iconBtn" id="rulesBtn" aria-label="遊び方">？</button>
     </div>
   </header>
@@ -39,19 +38,7 @@
   <main id="main"></main>
 </section>
 
-<div class="overlay" id="rules" hidden>
-  <div class="dialog">
-    <h2>遊び方</h2>
-    <p>同じ相手パイロットと<b>3試合</b>戦います。相手には<b>性格</b>があり、ロボットを出す順番にクセが出ます。試合を重ねて性格を見抜き、裏をかきましょう。ただし相手も<b>あなたのクセを覚えて</b>読んできます。</p>
-    <div class="rule">
-      <b class="k">1</b><span><b>設計</b>：配られた9枚の部位カードでロボットを3体組み、パイロットを1体に乗せる。<b>頭＝索敵、上半身＝攻撃、下半身＝防御</b>。3部位が同じメーカーなら全能力+1、パイロットは得意部位が+1。</span>
-      <b class="k">2</b><span><b>設計図公開</b>：おたがいのロボット3体の能力が見える。</span>
-      <b class="k">3</b><span><b>出撃</b>：3回戦。毎回1体ずつ同時に出す。<b>索敵が高いほうが先に攻撃</b>し、<b>攻撃が相手の防御を上回れば撃破</b>。防がれたら反撃される。索敵が同じなら同時攻撃。</span>
-      <b class="k">4</b><span>3試合が終わったら、相手の性格を当てよう。</span>
-    </div>
-    <button type="button" class="bigBtn" id="closeRules">閉じる</button>
-  </div>
-</div>
+<div class="overlay" id="rules" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="robot-parts.js"></script>

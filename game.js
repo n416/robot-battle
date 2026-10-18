@@ -17,7 +17,10 @@ const MY_FACE = 'faces/face01.webp';
 const MY_SCHEMES = ['tricolor', 'azure', 'blaze'], RV_SCHEMES = ['crimson', 'shadow', 'venom'];
 const MODEL_KEY = { ジオ: 'geo', ツイ: 'tsui', アナ: 'ana' };
 const modelOf = c => MODEL_KEY[c.m] + c.v;
-const modelsOf = r => ({ head: r.head && modelOf(r.head), upper: r.upper && modelOf(r.upper), lower: r.lower && modelOf(r.lower) });
+// some lower-body cards are hover legs (ex-online's hover models): the same numbers, legs that float on jets
+const HOVER = { geo3: 'geo3h', tsui3: 'tsui3h', tsui2: 'tsui2h', ana1: 'ana1h' };
+const partModel = c => (c.part === 'lower' && HOVER[modelOf(c)]) || modelOf(c);
+const modelsOf = r => ({ head: r.head && modelOf(r.head), upper: r.upper && modelOf(r.upper), lower: r.lower && partModel(r.lower) });
 const weaponOf = r => ROBO && r.upper ? ROBO.WEAPON_NAME[ROBO.WEAPON_OF[modelOf(r.upper)]] : '';
 
 // ---------- rules (as in n416/microtools robot/game.js) ----------
@@ -86,16 +89,17 @@ function cpuChoose() {
 let S;
 function newSeries() {
   const rivalName = pick(Object.keys(PILOTS));
-  S = { persona: pick(Object.keys(PERSONAS)), rivalName, rivalFace: PILOTS[rivalName], game: 0, wins: [0, 0, 0], history: [], phase: 'design', guess: null, habit: [[0, 0, 0], [0, 0, 0], [0, 0, 0]], nObs: 0, reads: [0, 0] };
+  S = { games: [], galAt: 0, persona: pick(Object.keys(PERSONAS)), rivalName, rivalFace: PILOTS[rivalName], game: 0, wins: [0, 0, 0], history: [], phase: 'design', guess: null, habit: [[0, 0, 0], [0, 0, 0], [0, 0, 0]], nObs: 0, reads: [0, 0] };
 }
 function newGame() {
   S.game++;
   const d = deck(), pilots = shuffle(['head', 'head', 'upper', 'upper', 'lower', 'lower']);
   const hand = () => ({ head: d.head.splice(0, 3), upper: d.upper.splice(0, 3), lower: d.lower.splice(0, 3) });
   const myHand = hand(), cpuHand = hand();
+  const handSum = h => PARTS.reduce((t, p) => t + h[p].reduce((u, c) => u + c.v, 0), 0);
   const cpu = bestDesign(cpuHand, pilots[1], S.persona);
   S.g = { hand: [...myHand.head, ...myHand.upper, ...myHand.lower], myHandOrig: myHand, pilot: pilots[0], robots: [{}, {}, {}], pilotAt: null,
-          cpuPilot: pilots[1], cpu, cpuSt: cpu.st, myUsed: [], cpuUsed: [], round: 0, score: [0, 0], results: [], sel: null, target: 0, dealt: false };
+          cpuPilot: pilots[1], cpu, cpuSt: cpu.st, myUsed: [], cpuUsed: [], round: 0, score: [0, 0], results: [], sel: null, target: 0, dealt: false, cpuHandSum: handSum(cpuHand) };
   bayAnim = [0, 1, 2].map(() => ({ drop: {}, paint: null, painted: false }));
   S.phase = 'design';
 }
@@ -137,7 +141,7 @@ function paintedView(robot, scheme, phase = 0, opts = {}) {
     const rig = rigFor(modelsOf(robot), scheme); rig.setPaint(1); rig.setLights(true);
     rig.pose({ aim: opts.aim != null ? opts.aim : .15 + Math.sin(performance.now() / 900 + phase) * .04, aimL: .05 });
     rig.parts.lower && (rig.parts.lower.position.y = 0); rig.upperPivot.position.y = rig.base.up; rig.headPivot.position.y = rig.base.head;
-    return { rig, yaw: (opts.yaw != null ? opts.yaw : -.5) + Math.sin(performance.now() / 2400 + phase) * .3, frame: opts.frame };
+    return { rig, yaw: opts.spin ? performance.now() / 1600 : (opts.yaw != null ? opts.yaw : -.5) + Math.sin(performance.now() / 2400 + phase) * .3, frame: opts.frame };
   };
 }
 let lastDraw = 0;
@@ -168,9 +172,9 @@ function titleScreen() {
 document.addEventListener('click', async e => {
   const b = e.target.closest('button,[data-pick],[data-bay]'); if (!b) return;
   if (b.id === 'startBtn') { SFX.unlock(); SFX.bgm(true); SFX.play('catapult_1', { vol: .8 }); FX.flash('#fff', 400, .9); $('title').hidden = true; $('game').hidden = false; newSeries(); await vsSplash(); startGame(); return; }
-  if (b.id === 'titleRules' || b.id === 'rulesBtn') { SFX.unlock(); $('rules').hidden = false; return; }
+  if (b.id === 'titleRules' || b.id === 'rulesBtn') { SFX.unlock(); openHelp(b.id === 'titleRules' ? 0 : helpForScreen()); return; }
   if (b.id === 'closeRules') { $('rules').hidden = true; return; }
-  if (b.id === 'muteBtn') { SFX.setMuted(!SFX.muted); b.textContent = SFX.muted ? '🔇' : '🔊'; return; }
+  if (b.dataset.help !== undefined) { showHelp(+b.dataset.help); SFX.tone(660, .04, { type: 'triangle', vol: .06 }); return; }
   if (!S || busy) return;
   const g = S.g;
   if (S.phase === 'design') {
@@ -193,6 +197,9 @@ document.addEventListener('click', async e => {
   if (b.id === 'logBtn') { modal(`${S.rivalName}の出し方の記録`, logHTML()); return; }
   if (b.id === 'nextGameBtn') { if (S.game < GAMES) startGame(); else { S.phase = 'guess'; render(); } return; }
   if (b.dataset.guess) { S.guess = b.dataset.guess; S.phase = 'reveal'; render(); revealFx(); return; }
+  if (b.dataset.gal !== undefined) { S.galAt = +b.dataset.gal; $('gallery').innerHTML = galleryHTML(); SFX.play('clamp_2', { vol: .4 }); return; }
+  if (b.id === 'shareX') { open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText()) + '&url=' + encodeURIComponent(SHARE_URL), '_blank', 'noopener'); return; }
+  if (b.id === 'shareCopy') { const t = shareText() + ' ' + SHARE_URL; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { b.textContent = 'コピーしました！'; }, () => { prompt('コピーしてください', t); }); return; }
   if (b.id === 'againBtn') { newSeries(); await vsSplash(); startGame(); return; }
 });
 document.addEventListener('keydown', e => { const t = e.target.closest && e.target.closest('[data-pick],[data-bay]'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); t.click(); } });
@@ -250,6 +257,16 @@ async function deal() {
       await sleep(900);
     } else { SFX.tone(700 + Math.random() * 300, .05, { type: 'square', vol: .06 }); FX.burst(x, y, { n: 8, speed: 5, colors: ['#9fe8ff', '#ffffff'], size: 2, life: .4 }); await sleep(90); }
   }
+  // the pilot's word on the hand: by the sum of the nine cards (18 on average) and the sets it could make
+  await sleep(500);
+  const all = [...g.myHandOrig.head, ...g.myHandOrig.upper, ...g.myHandOrig.lower], sum = all.reduce((a, c) => a + c.v, 0);
+  const sets = MAKERS.reduce((n, m) => n + Math.min(...PARTS.map(p => g.myHandOrig[p].filter(c => c.m === m).length)), 0);
+  const tier = sum >= 21 ? 3 : sum >= 19 ? 2 : sum <= 15 ? 0 : 1;
+  const SAY = [['これは勝てないだろ…', 'うわ、弱いカードばっかり…', '厳しいな…読みで勝つしかない。'], ['普通の手札だな。組み方しだいだ。', 'まあまあかな…読みで勝つ！'],
+    ['悪くない手札だ。', 'これなら戦える！'], ['これは強そうな手札がきた！', '★3がそろってる…いける！', '最高の配りだ！']];
+  const line = pick(SAY[tier]) + (sets >= 2 ? '　セットも組めそう！' : sets === 1 && tier < 3 ? '　1体はセットにできるな。' : '');
+  FX.cutin({ side: 'left', face: MY_FACE, title: 'あなた', text: line, cls: 'me', ms: 2000 });
+  SFX.play(tier >= 2 ? 'techok_1' : tier === 0 ? 'techfail_1' : 'beep_2', { vol: .5 });
   g.dealt = true;
   render();
 }
@@ -367,6 +384,17 @@ async function reveal() {
     await sleep(300);
     FX.cutin({ side: 'right', face: S.rivalFace, title: S.rivalName, text: pick(['どれから出すか、読めるかな？', 'さあ、勝負だ！', '手加減しないよ！']), cls: 'cpu', ms: 1400 });
     SFX.play('beep_2');
+    // your word on the two line-ups: the nine pairings, won minus lost (-9 .. 9); said without holding the screen up
+    setTimeout(() => {
+    const me = mySt(), edge = me.reduce((a, m) => a + S.g.cpuSt.reduce((b, c) => b + fight(m, c).r, 0), 0);
+    const SAY = edge <= -5 ? ['相手強すぎでしょ！ズルだ！', 'え、こんなの勝てるの…？', '設計で負けてる…読みで取り返すしかない！']
+      : edge <= -2 ? ['うーん、分が悪いな…', 'ちょっと押されてるか。出す順番が勝負だ。']
+      : edge <= 1 ? ['互角か。読み勝負だな。', 'いい勝負になりそうだ。']
+      : edge <= 4 ? ['いけそうな気がする！', 'こっちが少し有利か？']
+      : ['おっと？何出しても勝てるんじゃ？', '楽勝ムード…いや、油断は禁物！'];
+    FX.cutin({ side: 'left', face: MY_FACE, title: 'あなた', text: pick(SAY), cls: 'me', ms: 1900 });
+    SFX.play(edge >= 2 ? 'techok_1' : edge <= -2 ? 'techfail_1' : 'beep_1', { vol: .5 });
+    }, 1700);
   });
 }
 async function sortie() {
@@ -393,10 +421,11 @@ async function sortie() {
     FX.stamp('出撃！！', { cls: 'gold', sub: `ロボット${mine + 1}　発進`, ms: 700 });
     FX.flash('#fff', 300, .6);
     await sleep(800);
+    await pickReveal(mine, c, myRank, rk.indexOf(c), quote);
     const spec = {
       title: `第${S.game}試合　${g.round + 1}戦目`,
-      me: { models: modelsOf(g.robots[mine]), scheme: MY_SCHEMES[mine], st: me[mine], face: MY_FACE, name: 'あなた', label: `ロボット${mine + 1}（${RANKN[myRank]}）`, weapon: weaponOf(g.robots[mine]), line: pick(['いっけぇーっ！', 'ここで決める！', '頼むぞ、相棒！', '撃ち抜けーっ！']) },
-      cpu: { models: modelsOf(g.cpu.robots[c]), scheme: RV_SCHEMES[c], st: g.cpuSt[c], face: S.rivalFace, name: S.rivalName, label: `機体${'ABC'[c]}（${RANKN[rk.indexOf(c)]}）`, weapon: weaponOf(g.cpu.robots[c]), line: quote || pick(['行くぞ！', '負けないよ！', 'いざ勝負！', '手加減しないからね！']) },
+      me: { models: modelsOf(g.robots[mine]), scheme: MY_SCHEMES[mine], st: me[mine], face: MY_FACE, name: 'あなた', label: `ROBOT ${mine + 1}`, rank: myRank, rankName: RANKN[myRank], weapon: weaponOf(g.robots[mine]), line: pick(['いっけぇーっ！', 'ここで決める！', '頼むぞ、相棒！', '撃ち抜けーっ！']) },
+      cpu: { models: modelsOf(g.cpu.robots[c]), scheme: RV_SCHEMES[c], st: g.cpuSt[c], face: S.rivalFace, name: S.rivalName, label: `機体${'ABC'[c]}`, rank: rk.indexOf(c), rankName: RANKN[rk.indexOf(c)], weapon: weaponOf(g.cpu.robots[c]), line: quote || pick(['行くぞ！', '負けないよ！', 'いざ勝負！', '手加減しないからね！']) },
       flow: f,
     };
     g.round++;
@@ -404,16 +433,78 @@ async function sortie() {
     else { FX.stamp(f.r > 0 ? 'YOU WIN!!' : f.r < 0 ? 'LOSE…' : 'DRAW', { cls: f.r > 0 ? 'rainbow' : f.r < 0 ? 'red' : 'blue', ms: 1500 }); await sleep(1600); }
     if (g.round >= 3) { await gameEnd(); return; }
     render();
-    if (quote) FX.cutin({ side: 'right', face: S.rivalFace, title: S.rivalName, text: quote, cls: 'cpu', ms: 1500 });
   });
+}
+// ---------- the moment the rival's pick is shown: your unit, a face-down card that shakes to a drum roll, then flips ----------
+function pickReveal(mine, c, myRank, cpuRank, quote) {
+  const g = S.g, me = mySt()[mine], st = g.cpuSt[c];
+  const statRow = s => `<div class="rvStats"><span class="s">索敵<b>${s.s}</b></span><span class="a">攻撃<b>${s.a}</b></span><span class="d">防御<b>${s.d}</b></span></div>`;
+  const d = document.createElement('div'); d.className = 'pickReveal';
+  d.innerHTML = `<div class="prTitle">${S.rivalName}が出したのは…？</div>
+    <div class="prRow">
+      <div class="prCard me">${viewCanvas(paintedView(g.robots[mine], MY_SCHEMES[mine], 1, { yaw: -.7, aim: 1, frame: { cy: .55, dist: 2.4, h: .06 } }), 'prBot')}<b>ROBOT ${mine + 1}</b>${FX.rank(myRank, RANKN[myRank])}${statRow(me)}</div>
+      <div class="prVs">VS</div>
+      <div class="prCard rv"><div class="prBack">?</div>${viewCanvas(paintedView(g.cpu.robots[c], RV_SCHEMES[c], 2, { yaw: .7, aim: 1, frame: { cy: .55, dist: 2.4, h: .06 } }), 'prBot')}<b>機体 ${'ABC'[c]}</b>${FX.rank(cpuRank, RANKN[cpuRank])}${statRow(st)}</div>
+    </div>
+    <div class="prTalk"><img src="${S.rivalFace}" alt=""><span>${quote || pick(['これで行く！', 'さあ、どうだ！', 'これが私の答えだ！', '読めたかな？'])}</span></div>`;
+  document.body.append(d);
+  let skip = false; d.addEventListener('click', () => (skip = true));
+  const wait = ms => new Promise(r => { const t0 = performance.now(); (function k() { if (skip || performance.now() - t0 >= ms) r(); else setTimeout(k, 30); })(); });
+  return (async () => {
+    SFX.play('clamp_1', { vol: .6 });
+    await wait(450);
+    // drum roll: beeps closing in, the card shaking harder
+    const back = d.querySelector('.prCard.rv');
+    for (let i = 0; i < 7 && !skip; i++) { SFX.tone(440 + i * 70, .06, { type: 'square', vol: .08 }); back.style.setProperty('--sh', (2 + i * 1.2) + 'px'); await wait(190 - i * 18); }
+    back.classList.add('open'); SFX.play('gacha_on', { vol: .6, rate: 1.2 }); SFX.play('impact_1', { vol: .6 });
+    FX.flash('#fff', 260, .6); FX.shake(10, 300, d);
+    const [x, y] = FX.center(back); FX.burst(x, y, { n: 40, speed: 11, colors: ['#ffffff', '#ff5a6e', '#ffd23f'], kind: 'star', size: 4, life: .8 }); FX.ring(x, y, { color: '#ff5a6e', r1: 200 });
+    await wait(350);
+    d.querySelector('.prTalk').classList.add('show'); SFX.play('beep_2', { vol: .6 });
+    await wait(skip ? 0 : 1600);
+    d.classList.add('out'); await new Promise(r => setTimeout(r, 250)); d.remove();
+  })();
 }
 async function gameEnd() {
   const g = S.g, w = g.score[0] > g.score[1] ? 0 : g.score[1] > g.score[0] ? 1 : 2;
   S.wins[w]++;
+  S.games.push(gameRecord());
   S.phase = 'gameEnd'; render();
   if (w === 0) { SFX.fanfare(true); SFX.play('techgreat_1'); FX.confetti(220); FX.flash('#ffd23f', 400, .5); setTimeout(() => FX.confetti(120), 900); }
   else if (w === 1) SFX.play('techfail_1');
   else SFX.play('techok_1');
+}
+// ---------- a game looked back on: the hand, the design, the line-ups, the order you sent them in ----------
+function gameRecord() {
+  const g = S.g, me = mySt();
+  const score = order => g.cpuUsed.reduce((a, c, r) => a + fight(me[order[r]], g.cpuSt[c]).r, 0);   // against the order the rival really used
+  const all = PERMS.map(score), opt = bestDesign(g.myHandOrig, g.pilot, 'player');
+  return {
+    n: S.game, robots: g.robots.map(r => ({ ...r })), pilotAt: g.pilotAt, st: me, score: [...g.score], results: [...g.results],
+    actual: score(g.myUsed), best: Math.max(...all), avg: all.reduce((a, b) => a + b, 0) / all.length,
+    edge: me.reduce((a, m) => a + g.cpuSt.reduce((b, c) => b + fight(m, c).r, 0), 0),
+    myTotal: me.reduce((a, x) => a + total(x), 0), optTotal: opt.st.reduce((a, x) => a + total(x), 0),
+    handMe: PARTS.reduce((t, p) => t + g.myHandOrig[p].reduce((u, c) => u + c.v, 0), 0), handCpu: g.cpuHandSum, sets: me.filter(x => x.set).length,
+  };
+}
+// what went well and what did not, and whether luck (the hand, the line-ups) or play (the design, the order) weighed more
+function lookBack(G) {
+  const good = [], bad = [], dh = G.handMe - G.handCpu;
+  if (dh >= 3) good.push(`手札に恵まれた（数字の合計 ${G.handMe} 対 ${G.handCpu}）`); else if (dh <= -3) bad.push(`手札が弱かった（数字の合計 ${G.handMe} 対 ${G.handCpu}）`);
+  if (G.myTotal >= G.optTotal) good.push('この手札で組める最善の設計'); else bad.push(`設計に伸びしろ（最善なら合計能力 +${G.optTotal - G.myTotal}）`);
+  if (G.sets >= 2) good.push(`SET BONUS を ${G.sets} 体で`);
+  if (G.edge >= 3) good.push('組み合わせの相性で有利'); else if (G.edge <= -3) bad.push('組み合わせの相性で不利');
+  if (G.actual >= G.best && G.best > G.avg) good.push('出す順番は最善！'); else if (G.actual > G.avg + .2) good.push('出す順番で読み勝ち');
+  else if (G.actual < G.avg - .2) bad.push(`出す順番で損（あと ${G.best - G.actual} 勝ぶん良くなる並びがあった）`);
+  return { good, bad, luck: dh / 3 + G.edge / 3, play: (G.actual - G.avg) + (G.myTotal - G.optTotal) / 3 };
+}
+function verdict() {
+  const L = S.games.map(lookBack), luck = L.reduce((a, x) => a + x.luck, 0), play = L.reduce((a, x) => a + x.play, 0);
+  const won = S.wins[0] > S.wins[1], lost = S.wins[1] > S.wins[0];
+  if (!won && !lost) return Math.abs(play) >= Math.abs(luck) ? { k: '出し方', t: play >= 0 ? '出し方は良かった。あと一歩で勝ち越し！' : '出し方を工夫すれば勝ち越せた！' }
+    : { k: '運', t: luck >= 0 ? 'せっかくの好条件、勝ちきれず…' : '不利な手札でも引き分けに持ち込んだ！' };
+  if (Math.abs(play) >= Math.abs(luck)) return play >= 0 ? { k: '出し方', t: won ? '勝因は出し方。読みと設計で上回った！' : '出し方は良かった。あと一歩！' } : { k: '出し方', t: lost ? '敗因は出し方。運は悪くなかった…' : '運で勝てた。出し方にはまだ伸びしろ。' };
+  return luck >= 0 ? { k: '運', t: won ? '運にも助けられた勝利。' : '運は味方だったのに…出し方を見直そう。' } : { k: '運', t: lost ? '運が悪かった。出し方は悪くない！' : '不利な手札をはね返した！' };
 }
 function revealFx() {
   const ok = S.guess === S.persona;
@@ -423,7 +514,7 @@ function revealFx() {
 
 // ---------- render ----------
 const stars = v => '★'.repeat(v) + '<span style="opacity:.25">' + '★'.repeat(3 - v) + '</span>';
-const cardHTML = (c, dealt) => `<button type="button" class="pcard r${c.v}" data-card="${c.id}" aria-label="${c.m} ${PNAME[c.part]} ${c.v}"><span class="mk ${c.m}">${c.m}</span>${ROBO ? `<img src="${ROBO.thumb(modelOf(c), c.part)}" alt="">` : ''}<span class="v">${c.v}</span><span class="stars">${stars(c.v)}</span><span class="pt">${PNAME[c.part]}・${SNAME[c.part]}</span></button>`;
+const cardHTML = (c, dealt) => `<button type="button" class="pcard r${c.v}" data-card="${c.id}" aria-label="${c.m} ${PNAME[c.part]} ${c.v}"><span class="mk ${c.m}">${c.m}</span>${ROBO ? `<img src="${ROBO.thumb(partModel(c), c.part)}" alt="">` : ''}<span class="v">${c.v}</span><span class="stars">${stars(c.v)}</span><span class="pt">${PNAME[c.part]}・${SNAME[c.part]}</span>${partModel(c) !== modelOf(c) ? '<span class="hov">HOVER</span>' : ''}</button>`;
 const STAT_OF = { head: 's', upper: 'a', lower: 'd' };
 function statHTML(s, pilot) {
   return `<div class="stats">${[['索敵', 's'], ['攻撃', 'a'], ['防御', 'd']].map(([n, k]) => { const up = pilot && STAT_OF[pilot] === k;
@@ -474,12 +565,15 @@ function render() {
   if (S.phase === 'guess' || S.phase === 'reveal') { renderEnd(main); return; }
   if (S.phase === 'gameEnd') {
     const w = g.score[0] > g.score[1] ? 'win' : g.score[1] > g.score[0] ? 'lose' : 'draw';
-    $('msg').innerHTML = `<b>第${S.game}試合 終了</b>${S.rivalName}の出し方のクセは見えてきた？`;
-    main.innerHTML = `<section class="panel result"><div class="big ${w}">${w === 'win' ? 'VICTORY!!' : w === 'lose' ? 'DEFEAT' : 'DRAW'}</div>
+    $('msg').hidden = true;
+    const rank = r => FX.rank(r, RANKN[r]);
+    const res = r => `<span class="resChip ${r > 0 ? 'w' : r < 0 ? 'l' : 'd'}">${r > 0 ? '勝ち' : r < 0 ? '負け' : '引分'}</span>`;
+    const recap = S.history.filter(h => h.game === S.game).map(h => `<div class="recap"><span class="rn">${h.round}戦目</span><div class="vsLine">${rank(h.myRank)}<i>vs</i>${rank(h.cpuRank)}</div>${res(h.r)}</div>`).join('');
+    main.innerHTML = `<section class="panel result endTop"><div class="big ${w}">${w === 'win' ? 'VICTORY!!' : w === 'lose' ? 'DEFEAT' : 'DRAW'}</div>
       <div class="score"><span class="m">${g.score[0]}</span> ― <span class="r">${g.score[1]}</span></div>
-      <div class="roundDots">${g.results.map(r => `<span class="rd ${r > 0 ? 'w' : r < 0 ? 'l' : 'd'}">${r > 0 ? '勝' : r < 0 ? '負' : '分'}</span>`).join('')}</div>
-      <button type="button" class="bigBtn go" id="nextGameBtn">${S.game < GAMES ? '次の試合へ' : '相手の性格を当てる'}</button></section>
-      ${histHTML()}`;
+      <div class="recaps">${recap}</div>
+      <button type="button" class="bigBtn go" id="nextGameBtn">${S.game < GAMES ? `第${S.game + 1}試合へ` : `${S.rivalName}の性格を当てる`}</button></section>
+      ${hintsHTML()}`;
     return;
   }
   // battle: the sortie deck. Rival units on top, the face-off stage in the middle, your units and the launch button below
@@ -489,7 +583,7 @@ function render() {
     const rv = side === 'rv';
     const makers = PARTS.map(p => `<i class="chip ${r[p].m}" title="${PNAME[p]} ${r[p].m} ${r[p].v}"></i>`).join('');
     return `<div class="unit ${rv ? 'rv' : ''} ${used ? 'used' : ''} ${sel ? 'sel' : ''}" ${!rv && !used ? `data-pick="${k}" role="button" tabindex="0"` : ''}>
-      <div class="uTop"><span class="no">${rv ? '機体 ' + 'ABC'[k] : 'ROBOT ' + (k + 1)}</span><span class="rank r${rank}">${RANKN[rank]}</span></div>
+      <div class="uTop"><span class="no">${rv ? '機体 ' + 'ABC'[k] : 'ROBOT ' + (k + 1)}</span>${FX.rank(rank, RANKN[rank])}</div>
       ${viewCanvas(paintedView(r, rv ? RV_SCHEMES[k] : MY_SCHEMES[k], k + (rv ? 0 : 3), { yaw: rv ? .8 : -.8, aim: sel ? .9 : undefined, frame: { cy: .55, dist: 2.3, h: .06 } }), 'uBot')}
       <div class="uStats"><span class="s"><i>索敵</i><b>${s.s}</b></span><span class="a"><i>攻撃</i><b>${s.a}</b></span><span class="d"><i>防御</i><b>${s.d}</b></span></div>
       <div class="uFoot"><span class="makers">${makers}</span>${s.set ? '<span class="tag set">SET</span>' : ''}${pilot ? '<span class="tag pilot">P</span>' : ''}<span class="wpn">${weaponOf(r)}</span></div>
@@ -510,11 +604,24 @@ function render() {
         <div class="stageMid"><div class="roundNo">ROUND ${g.round + 1}</div><div class="vsBig">VS</div><div class="roundDots">${dots}</div>
           <div class="score"><span class="m">${g.score[0]}</span> - <span class="r">${g.score[1]}</span></div>
           <div class="stageBtns"><button type="button" class="chipBtn" id="muBtn">相性表</button><button type="button" class="chipBtn" id="logBtn">記録</button></div></div>
-        <div class="stageSide rv"><img class="rvFace" src="${S.rivalFace}" alt=""><div class="qMark">?</div><div class="stageName rv">${S.rivalName}<small>どれを出してくる…？</small></div></div>
+        <div class="stageSide rv"><img class="rvFace" src="${S.rivalFace}" alt=""><div class="qMark">?</div><div class="stageName rv">${S.rivalName}<span class="rvSay">「${rivalSay()}」</span></div></div>
       </div>
       <div class="dock"><div class="stripLabel me">YOUR UNITS</div><div class="units">${myRow}</div>
         <button type="button" class="launchBtn" id="sortieBtn" ${g.sel === null ? 'disabled' : ''}><span>出撃</span><small>${g.sel === null ? '機体を選択' : 'LAUNCH!'}</small></button></div>
     </div>`;
+}
+// what the rival says beside its face on the sortie screen: by the units both sides have left, how the pairings go for
+// you (won minus lost, over their number); picked once a round
+function rivalSay() {
+  const g = S.g, key = S.game + ':' + g.round;
+  if (g.sayKey === key) return g.say;
+  const me = mySt(), mine = [0, 1, 2].filter(i => !g.myUsed.includes(i)), theirs = [0, 1, 2].filter(i => !g.cpuUsed.includes(i));
+  let e = 0; for (const i of mine) for (const k of theirs) e += fight(me[i], g.cpuSt[k]).r;
+  const x = e / Math.max(1, mine.length * theirs.length);
+  const SAY = x >= .55 ? ['・・・ずるい', 'その機体、反則だろ…', '勘弁してくれよ…'] : x >= .22 ? ['ちょっと厳しいか…', 'やるじゃないか'] : x > -.22 ? ['いい勝負になりそうだ', 'どれを出してくる…？']
+    : x > -.55 ? ['悪くない手だ', 'こっちが一枚上手かな'] : ['余裕だぜ', '相手にならないな', '本気を出すまでもない'];
+  g.sayKey = key; g.say = pick(SAY);
+  return g.say;
 }
 function muHTML() {
   const g = S.g, me = mySt();
@@ -528,6 +635,35 @@ function modal(title, html) {
   d.innerHTML = `<div class="dialog"><h2>${title}</h2>${html}<button type="button" class="bigBtn">閉じる</button></div>`;
   d.addEventListener('click', e => { if (e.target === d || e.target.closest('.bigBtn')) d.remove(); });
   document.body.append(d);
+}
+// ---------- hints after each game: the rival's habit so far, how well each personality fits it, and a word on yours ----------
+function hintsHTML() {
+  const H = S.history, name = S.rivalName;
+  // what each side sent in each round, game by game: one row a round, one badge a game (the same badge again and again is a habit)
+  const seq = key => `<div class="seqTable">${[1, 2, 3].map(r => { const row = H.filter(h => h.round === r);
+    return `<div class="seqRow"><span class="rn">${r}戦目</span><span class="seq">${row.length ? row.map(h => FX.rank(h[key], RANKN[h[key]])).join('') : '<span class="none">まだ</span>'}</span></div>`; }).join('')}</div>`;
+  // how many of the rival's picks each personality would have made
+  // each personality: the rank it would send in each round, and how often the rival did send that there
+  const games = r => H.filter(h => h.round === r + 1);
+  const fit = Object.entries(PERSONAS).map(([k, p]) => ({ n: p.n, cells: p.pattern.map((want, r) => ({ want, hit: games(r).filter(h => h.cpuRank === want).length, of: games(r).length })) }))
+    .map(f => ({ ...f, hit: f.cells.reduce((a, c) => a + c.hit, 0), of: f.cells.reduce((a, c) => a + c.of, 0) }));
+  const best = Math.max(...fit.map(f => f.hit));
+  const bars = `<div class="fitHead"><span></span>${[1, 2, 3].map(r => `<span>${r}戦目</span>`).join('')}<span>一致</span></div>` + fit.map(f => `<div class="fitRow ${f.hit && f.hit === best ? 'top' : ''}"><b>${f.n}</b>
+      ${f.cells.map(c => `<span class="cell ${c.of && c.hit === c.of ? 'all' : c.hit ? 'some' : ''}">${FX.rank(c.want, RANKN[c.want])}<small>${c.of ? `${c.of}回中${c.hit}回` : '−'}</small></span>`).join('')}
+      <span class="tot"><i style="width:${f.of ? Math.round(f.hit / f.of * 100) : 0}%"></i><em>${f.hit}/${f.of}</em></span></div>`).join('');
+  // a word to you: a habit of your own the rival may be reading, else a tip
+  const mine = [0, 1, 2].map(r => { const c = S.habit[r], n = c[0] + c[1] + c[2], k = c.indexOf(Math.max(...c)); return { r, k, n, share: n ? c[k] / n : 0 }; }).filter(x => x.n >= 2 && x.share >= .66);
+  const TIPS = [`相手の最強に、こちらの最弱をぶつけて捨てるのも手。残りの2戦で勝ち越せばいい。`, `索敵が高い機体は先に撃てる。攻撃が相手の防御を上回るなら、一撃で決まる。`,
+    `防御を上回られなければ負けない。防御の高い機体は、引き分け狙いの壁になる。`, `相手も出撃させた順番を覚えている。わざと出し方を変えると、読みを外せる。`];
+  const word = mine.length ? `<p class="warn">あなたは<b>${mine[0].r + 1}戦目に${RANKN[mine[0].k]}</b>を出しがちです。${name}に読まれているかもしれません。次は外してみては？</p>` : '';
+  const reads = S.reads[1] ? `<p>${name}があなたを読んで出したことが <b>${S.reads[1]}</b> 回あり、そのうち <b>${S.reads[0]}</b> 回当たっています。</p>` : '';
+  return `<div class="hints">
+    <section class="panel"><h2>${name}の出し方 <span class="sub">左から第1試合、第2試合…</span></h2>${seq('cpuRank')}
+      <p class="hint">同じ札が続く所が${name}のクセ。ただしときどき、あなたを読んだり気まぐれで出したりします。</p></section>
+    <section class="panel"><h2>あなたの出し方 <span class="sub">${name}はこれを見て読んできます</span></h2>${seq('myRank')}
+      <p class="hint">同じ札が続いていたら、次は変えてみると読みを外せます。</p></section>
+    <section class="panel"><h2>どの性格っぽい？</h2><p class="hint" style="text-align:left">札はその性格なら出すはずの機体。下は${name}が実際にそれを出した回数。一致が多い性格が怪しい。</p>${bars}</section>
+    <section class="panel advice"><h2>ヒント</h2>${word}${reads}<p>${pick(TIPS)}</p></section></div>`;
 }
 function histHTML() {
   return `<section class="panel"><details class="more" ${S.history.length ? '' : ''}><summary>${S.rivalName}の出し方の記録（性格を見抜く手がかり）</summary>${S.history.length ? `<ul class="log">${S.history.map(h => `<li>第${h.game}試合 ${h.round}戦目：あなた ${RANKN[h.myRank]} ／ ${S.rivalName} <b>${RANKN[h.cpuRank]}</b>（${h.r > 0 ? 'あなたの勝ち' : h.r < 0 ? '相手の勝ち' : '引分'}）</li>`).join('')}</ul>` : '<p class="hint">まだ記録がありません。</p>'}</details></section>`;
@@ -545,16 +681,105 @@ function renderEnd(main) {
       <section class="panel"><h2>出し方の記録</h2>${hist}</section>`;
     return;
   }
-  const ok = S.guess === S.persona;
-  $('msg').innerHTML = `<b>シリーズ ${S.wins[0]} ― ${S.wins[1]}</b>`;
-  main.innerHTML = `<section class="panel result"><div class="big ${ok ? 'win' : 'lose'}">${ok ? '見抜いた！！' : 'ハズレ…'}</div>
-      <div class="revealText"><p>${S.rivalName}の性格は<b>「${p.n}」</b>でした。${p.d}</p>
-      <p>ただし${S.rivalName}も<b>あなたのクセを読んでいました</b>。性格どおりに出したのは ${S.history.filter(h => h.mode === 'persona').length} 回、あなたを読んで出したのは ${S.history.filter(h => h.mode === 'read').length} 回（読みが当たったのは ${S.reads[0]} 回）、気まぐれが ${S.history.filter(h => h.mode === 'whim').length} 回です。</p>
-      <p>あなたのクセ：${[0, 1, 2].map(r => { const h = S.habit[r], m = h.indexOf(Math.max(...h)); return `${r + 1}戦目は${RANKN[m]}が${h[m]}回`; }).join('、')}</p></div>
-      <button type="button" class="bigBtn go" id="againBtn">別の相手と戦う</button></section>
-    <section class="panel"><h2>出し方の記録</h2>${hist}</section>`;
+  const ok = S.guess === S.persona, v = verdict();
+  $('msg').hidden = true;
+  const res = r => `<span class="resChip ${r > 0 ? 'w' : r < 0 ? 'l' : 'd'}">${r > 0 ? '勝' : r < 0 ? '負' : '分'}</span>`;
+  const cards = S.games.map(G => { const L = lookBack(G), w = G.score[0] > G.score[1] ? 'w' : G.score[1] > G.score[0] ? 'l' : 'd';
+    return `<div class="gameCard ${w}"><div class="gcTop"><b>第${G.n}試合</b><span class="gcScore">${G.score[0]} - ${G.score[1]}</span>${G.results.map(res).join('')}</div>
+      <div class="gcBars"><span>手札 ${G.handMe}<i>vs</i>${G.handCpu}</span><span>相性 ${G.edge > 0 ? '+' : ''}${G.edge}</span><span>出し方 ${G.actual >= G.best ? '最善' : `最善まで${G.best - G.actual}勝`}</span></div>
+      <ul class="gcList">${L.good.map(t => `<li class="good">${t}</li>`).join('')}${L.bad.map(t => `<li class="bad">${t}</li>`).join('')}</ul></div>`; }).join('');
+  main.innerHTML = `<section class="panel finale">
+      <div class="finHero"><img src="${S.rivalFace}" alt=""><div><div class="big ${ok ? 'win' : 'lose'}">${ok ? '見抜いた！！' : 'ハズレ…'}</div>
+        <p>${S.rivalName}の性格は <b class="pName">「${p.n}」</b>　${p.d}</p>
+        <p class="sub">性格どおり ${S.history.filter(h => h.mode === 'persona').length} 回 ／ あなたを読んだ ${S.history.filter(h => h.mode === 'read').length} 回（的中 ${S.reads[0]}）／ 気まぐれ ${S.history.filter(h => h.mode === 'whim').length} 回</p></div></div>
+      <div class="finScore"><span>シリーズ</span><b class="m">${S.wins[0]}</b><i>-</i><b class="r">${S.wins[1]}</b>${S.wins[2] ? `<span>引分 ${S.wins[2]}</span>` : ''}</div>
+      <div class="verdict"><span>勝敗を分けたのは</span><b>${v.k}</b><p>${v.t}</p></div></section>
+    <section class="panel"><h2>振り返り <span class="sub">手札＝配られた9枚の数字の合計、相性＝9通りの組み合わせの勝ち越し数、出し方＝相手の出し方に対して、最善の並びと比べて</span></h2><div class="gameCards">${cards}</div></section>
+    <section class="panel"><h2>あなたの機体</h2><div id="gallery">${galleryHTML()}</div></section>
+    <section class="panel finCta"><div class="shareRow"><button type="button" class="subBtn" id="shareX">𝕏 でシェア</button><button type="button" class="subBtn" id="shareCopy">結果をコピー</button></div>
+      <button type="button" class="bigBtn go" id="againBtn">もう一度遊ぶ（別の相手）</button>
+      <div class="linkRow"><a class="ctaLink" href="https://extendsuit.com/" target="_blank" rel="noopener">本体のサイトを見る ›</a><a class="ctaLink yt" href="https://www.youtube.com/@416gamedev" target="_blank" rel="noopener">開発の状況を見る ›</a></div></section>
+    <section class="panel"><details class="more"><summary>出し方の記録</summary>${hist}</details></section>`;
 }
+// the robots you built, one at a time, turning; arrows and chips to move between them
+function galleryHTML() {
+  const list = S.games.flatMap(G => G.robots.map((r, k) => ({ r, k, n: G.n, st: G.st[k], pilot: G.pilotAt === k })));
+  if (!list.length) return '';
+  const i = ((S.galAt % list.length) + list.length) % list.length, x = list[i];
+  return `<div class="gal"><button type="button" class="galNav" data-gal="${i - 1}" aria-label="前の機体">‹</button>
+      <div class="galStage">${viewCanvas(paintedView(x.r, MY_SCHEMES[x.k], 7, { spin: true, aim: .3, frame: { cy: .55, dist: 2.6, h: .1 } }), 'galBot')}
+        <div class="galInfo"><b>第${x.n}試合　ROBOT ${x.k + 1}</b>${x.pilot ? '<span class="tag pilot">搭乗</span>' : ''}${x.st.set ? '<span class="tag set">SET</span>' : ''}
+          <span class="wpn">${weaponOf(x.r)}</span>
+          <div class="galStats"><span class="s">索敵<b>${x.st.s}</b></span><span class="a">攻撃<b>${x.st.a}</b></span><span class="d">防御<b>${x.st.d}</b></span></div>
+          <div class="galParts">${PARTS.map(p => `<span><i class="chip ${x.r[p].m}">${x.r[p].m}</i>${PNAME[p]} ${x.r[p].v}</span>`).join('')}</div></div></div>
+      <button type="button" class="galNav" data-gal="${i + 1}" aria-label="次の機体">›</button></div>
+    <div class="galChips">${list.map((y, j) => `<button type="button" class="${j === i ? 'on' : ''}" data-gal="${j}">${y.n}-${y.k + 1}</button>`).join('')}</div>`;
+}
+function shareText() {
+  const v = verdict(), ok = S.guess === S.persona;
+  return `ロボットバトルで${S.rivalName}と3本勝負！ シリーズ ${S.wins[0]}-${S.wins[1]}、相手の性格「${PERSONAS[S.persona].n}」を${ok ? '見抜いた！' : '見抜けなかった…'} 勝敗を分けたのは「${v.k}」 #ロボットバトル`;
+}
+const SHARE_URL = 'https://n416.github.io/robot-battle/';
 
-$('muteBtn').textContent = SFX.muted ? '🔇' : '🔊';
+// ---------- help: cards, opened at the one for the screen you are on; the others a tap away ----------
+const HELP = [
+  { t: 'ロボットバトルとは', b: `<p>部位カードでロボットを3体組み、同じ相手パイロットと<b>3試合</b>戦います。</p>
+      <p>相手には<b>性格</b>があり、ロボットを出す順番にクセが出ます。試合を重ねて性格を見抜き、裏をかきましょう。</p>
+      <p>ただし相手も<b>あなたのクセを覚えて</b>読んできます。いつも同じ出し方だと、狙い撃ちされます。</p>` },
+  { t: '格納庫：ロボットを組む', b: `<p>手札のカードをタップすると、<b>光っているロボット</b>に装着されます。ロボットをタップすると装着先が変わります。</p>
+      <ul><li><b>頭</b> → 索敵（先に撃てるか）</li><li><b>上半身</b> → 攻撃（武器つき）</li><li><b>下半身</b> → 防御</li></ul>
+      <p>3部位を<b>同じメーカー</b>（ジオ・ツイ・アナ）でそろえると、全能力+1の<b>SET BONUS</b>。</p>
+      <p>装着した部位をタップすると手札に戻せます。迷ったら「おまかせ設計」。</p>` },
+  { t: '格納庫：パイロットを乗せる', b: `<p>パイロットは1人。<b>得意な能力</b>（索敵・攻撃・防御のどれか）があります。</p>
+      <p>各ロボットの<b>「ここに乗せる」</b>を押すと搭乗し、その機体の得意な能力が<b>+1</b>。上がる数字は欄に出ています。</p>
+      <p>もう一度押すと降ります。3体とパイロットがそろったら「設計完了！」。</p>` },
+  { t: '出撃：どれを出す？', b: `<p>上が相手の3機、下があなたの3機。<b>おたがいの能力は公開</b>されています。</p>
+      <p>あなたの機体を1体選んで<b>「出撃」</b>。相手も同時に1体を出し、出撃した機体はその試合ではもう使えません。</p>
+      <p>「相性表」で、どの組み合わせなら勝てるかを確かめられます。「記録」には相手の出し方が残ります。</p>` },
+  { t: '戦闘の決まり', b: `<ol><li><b>索敵</b>が高いほうが先に攻撃。</li><li><b>攻撃が相手の防御を上回れば撃破</b>。</li><li>防がれたら、相手の反撃。</li><li>索敵が同じなら<b>同時攻撃</b>。</li></ol>
+      <p>どちらも撃破できなければ引き分け。3戦して、撃破の多いほうがその試合の勝ち。</p>` },
+  { t: '相手の性格を見抜く', b: `<ul><li><b>強気</b>：一番強いロボットを最初に出したがる。</li><li><b>慎重</b>：一番強いロボットを最後まで温存する。</li><li><b>策士</b>：最初に一番弱いのを捨て駒にし、2戦目に一番強いのを出す。</li></ul>
+      <p>3試合のあと、相手の性格を当てます。ただし相手も、あなたのクセを読んで出し方を変えてきます。</p>` },
+];
+let helpAt = 0;
+function helpForScreen() {
+  if (!S || $('game').hidden) return 0;
+  if (S.phase === 'design') return S.g.hand.length ? 1 : 2;
+  if (S.phase === 'battle') return 3;
+  if (S.phase === 'gameEnd') return 4;
+  return 5;
+}
+function showHelp(i) {
+  helpAt = (i + HELP.length) % HELP.length;
+  const h = HELP[helpAt];
+  $('rules').innerHTML = `<div class="dialog helpCard">
+    <div class="helpTop"><span class="helpNo">${helpAt + 1} / ${HELP.length}</span><button type="button" class="helpX" id="closeRules" aria-label="閉じる">×</button></div>
+    <h2>${h.t}</h2><div class="helpBody">${h.b}</div>
+    <div class="helpNav"><button type="button" class="subBtn" data-help="${helpAt - 1}">‹ 前へ</button>
+      <span class="helpDots">${HELP.map((x, k) => `<button type="button" class="${k === helpAt ? 'on' : ''}" data-help="${k}" aria-label="${x.t}"></button>`).join('')}</span>
+      <button type="button" class="subBtn" data-help="${helpAt + 1}">次へ ›</button></div></div>`;
+}
+function openHelp(i) { showHelp(i); $('rules').hidden = false; }
+$('rules').addEventListener('click', e => { if (e.target === $('rules')) $('rules').hidden = true; });
+// ---------- the sound control: a button in the corner on every screen (over the battle too), opening sliders ----------
+(() => {
+  const w = document.createElement('div'); w.className = 'volCtl';
+  w.innerHTML = `<button type="button" class="volBtn" aria-label="音量" aria-expanded="false"></button>
+    <div class="volPanel" hidden><b>音量</b>
+      <label>BGM<input type="range" min="0" max="100" data-vol="bgm"></label>
+      <label>効果音<input type="range" min="0" max="100" data-vol="sfx"></label>
+      <button type="button" class="volMute"></button></div>`;
+  document.querySelector('.hudBtns').prepend(w);   // (battle3d.js lends it to the battle screen while one runs)
+  const btn = w.querySelector('.volBtn'), panel = w.querySelector('.volPanel'), mute = w.querySelector('.volMute');
+  const ICON = off => `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/>${off ? '<path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' : '<path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'}</svg>`;
+  const sync = () => { const v = SFX.volume; btn.innerHTML = ICON(SFX.muted || (v.bgm + v.sfx === 0)); mute.textContent = SFX.muted ? '音を出す' : 'すべて消音'; w.querySelectorAll('[data-vol]').forEach(r => (r.value = Math.round(v[r.dataset.vol] * 100))); };
+  btn.addEventListener('click', e => { e.stopPropagation(); SFX.unlock(); panel.hidden = !panel.hidden; btn.setAttribute('aria-expanded', String(!panel.hidden)); sync(); });
+  w.addEventListener('click', e => e.stopPropagation());
+  w.querySelectorAll('[data-vol]').forEach(r => r.addEventListener('input', () => { SFX.setVolume(r.dataset.vol, r.value / 100); if (SFX.muted && r.value > 0) SFX.setMuted(false); sync(); }));
+  w.querySelectorAll('[data-vol="sfx"]').forEach(r => r.addEventListener('change', () => SFX.play('beep_1', { vol: .6 })));
+  mute.addEventListener('click', () => { SFX.setMuted(!SFX.muted); sync(); });
+  document.addEventListener('click', () => { if (!panel.hidden) { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); } });
+  sync();
+})();
 titleScreen();
 })();

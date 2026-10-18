@@ -105,5 +105,8 @@ window.FX = (() => {
   }
   const center = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
   const wait = ms => new Promise(r => setTimeout(r, reduce ? Math.min(ms, 120) : ms));
-  return { burst, ring, confetti, flash, shake, stamp, cutin, popText, center, wait, reduce, layer };
+  // a side's strongest / middle / weakest unit as a badge: the strongest a crown, no word [依頼主: 最強ってのは書かずに王冠]
+  const CROWN = '<svg viewBox="0 0 24 18" aria-hidden="true"><path d="M2 15 L3.5 4 L8.5 9 L12 1.5 L15.5 9 L20.5 4 L22 15 Z" fill="currentColor"/><rect x="2" y="15.5" width="20" height="2.5" rx="1" fill="currentColor"/></svg>';
+  const rank = (k, name, extra = '') => `<span class="rank r${k}" ${extra} ${k === 0 ? `aria-label="${name}" title="${name}"` : ''}>${k === 0 ? CROWN : name}</span>`;
+  return { burst, ring, confetti, flash, shake, stamp, cutin, popText, center, wait, reduce, layer, rank };
 })();

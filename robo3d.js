@@ -178,6 +178,8 @@ window.ROBO = (() => {
       grp.updateMatrixWorld(true);
       const by = {}; bones.forEach(b => (by[b.name] = b));
       const len = (a, b) => (by[a] && by[b] ? by[a].getWorldPosition(new THREE.Vector3()).distanceTo(by[b].getWorldPosition(new THREE.Vector3())) : .2);
+      // the hover legs' jets (their -y is the way they blow)
+      this.jets = bones.filter(b => /^jet_/.test(b.name)); this.hover = !!M[model].hover;
       this.leg = { by, rest: new Map(bones.map(b => [b, { q: b.quaternion.clone(), p: b.position.clone() }])), L1: (len('leg_l', 'shin_l') + len('leg_r', 'shin_r')) / 2, L2: (len('shin_l', 'foot_l') + len('shin_r', 'foot_r')) / 2 };
       return new THREE.Skeleton(bones);
     }
@@ -186,6 +188,7 @@ window.ROBO = (() => {
     legs({ crouch = 0, stride = 0, kneel = 0 } = {}) {
       const L = this.leg; if (!L) return;
       for (const [b, r] of L.rest) { b.quaternion.copy(r.q); b.position.copy(r.p); }
+      if (this.hover) stride *= .3;   // (hover legs glide: they hardly step)
       const a = crouch * .75;
       const ang = { l: [a + stride * .8 + kneel * 1.25, -2 * a - Math.abs(stride) * .35 - kneel * 1.45], r: [a - stride * .55 - kneel * .25, -2 * a - Math.abs(stride) * .7 - kneel * 1.95] };
       const qx = new THREE.Quaternion(), X = new THREE.Vector3(1, 0, 0);
@@ -217,7 +220,7 @@ window.ROBO = (() => {
       if (this.armL) { this.armL.rotation.set(aimL * Math.PI / 2.4, 0, .08 + aimL * .1); }
       this.upperPivot.rotation.set(lean, twist, 0);
       if (!this.headGone) this.headPivot.rotation.set(0, look, 0);   // (once blown off, it tumbles on its own)
-      this.body.position.y = bob;
+      this.body.position.y = bob + (this.hover ? .03 + Math.sin(performance.now() / 420) * .006 : 0);   // (hover legs float)
     }
     muzzleWorld(v = new THREE.Vector3()) { if (!this.muzzle) return this.root.getWorldPosition(v).add(new THREE.Vector3(0, .6, 0)); this.root.updateMatrixWorld(true); return this.muzzle.getWorldPosition(v); }
     dispose() { this.root.traverse(o => { if (o.isMesh && o.geometry.getAttribute('paintColor')) o.geometry.dispose(); }); this.mat.dispose(); if (this.matSkin) this.matSkin.dispose(); }

@@ -28,7 +28,7 @@ window.BATTLE = (() => {
   const parts = [];
   function sprite(o) {
     let p = parts.find(q => !q.alive);
-    if (!p) { if (parts.length > 700) return null; const m = new THREE.SpriteMaterial({ map: TEX.glow, depthWrite: false, transparent: true }); p = { s: new THREE.Sprite(m) }; scene.add(p.s); parts.push(p); }
+    if (!p) { if (parts.length > 700) return null; const m = new THREE.SpriteMaterial({ map: TEX.glow, depthWrite: false, transparent: true, fog: false }); p = { s: new THREE.Sprite(m) }; scene.add(p.s); parts.push(p); }
     const m = p.s.material;
     m.map = o.tex || TEX.glow; m.blending = o.normal ? THREE.NormalBlending : THREE.AdditiveBlending; m.color.set(o.color || '#ffffff'); m.rotation = o.rot || rnd(0, TAU); m.opacity = o.alpha == null ? 1 : o.alpha;
     Object.assign(p, { alive: true, life: 0, max: o.life || .6, pos: o.pos.clone(), vel: o.vel ? o.vel.clone() : V(0, 0, 0), s0: o.size || .3, s1: o.size1 == null ? (o.size || .3) : o.size1, a0: o.alpha == null ? 1 : o.alpha, g: o.g || 0, drag: o.drag || 1, spin: o.spin || 0, fadeIn: o.fadeIn || 0 });
@@ -58,7 +58,7 @@ window.BATTLE = (() => {
   function explosion(pos, big = 1) {
     sprite({ pos, size: .4 * big, size1: 2.2 * big, life: .22, color: '#fff2c8', alpha: .9 });
     for (let i = 0; i < (reduce ? 3 : 7); i++) sprite({ pos: pos.clone().add(V(rnd(-.25, .25), rnd(-.1, .3), rnd(-.25, .25)).multiplyScalar(big)), vel: V(rnd(-.6, .6), rnd(.2, 1.4), rnd(-.6, .6)).multiplyScalar(big), size: .25 * big, size1: rnd(.8, 1.4) * big, life: rnd(.45, .8), color: ['#ff9a2a', '#ff6a14', '#ff4a10', '#ffc040'][i % 4], alpha: .75, drag: .9 });
-    for (let i = 0; i < (reduce ? 4 : 10); i++) sprite({ pos: pos.clone().add(V(rnd(-.3, .3), rnd(0, .3), rnd(-.3, .3))), vel: V(rnd(-.5, .5), rnd(.5, 1.3), rnd(-.5, .5)).multiplyScalar(big), size: .4 * big, size1: rnd(1.4, 2.2) * big, life: rnd(1.4, 2.4), color: '#2a2228', normal: true, alpha: .75, tex: TEX.smoke, drag: .95, fadeIn: .1, spin: rnd(-1, 1) });
+    for (let i = 0; i < (reduce ? 4 : 10); i++) sprite({ pos: pos.clone().add(V(rnd(-.3, .3), rnd(0, .3), rnd(-.3, .3))), vel: V(rnd(-.5, .5), rnd(.5, 1.3), rnd(-.5, .5)).multiplyScalar(big), size: .35 * big, size1: rnd(1.1, 1.8) * big, life: rnd(1.2, 2.0), color: '#1a1618', normal: true, alpha: .55, tex: TEX.smoke, drag: .95, fadeIn: .1, spin: rnd(-1, 1) });
     for (let i = 0; i < (reduce ? 8 : 34); i++) { const d = V(rnd(-1, 1), rnd(-.1, 1.2), rnd(-1, 1)).normalize(); sprite({ pos, vel: d.multiplyScalar(rnd(3, 8) * big), size: rnd(.05, .11), size1: .02, life: rnd(.4, .9), color: i % 3 ? '#ffd27a' : '#ffffff', g: 9, drag: .96, tex: TEX.spark }); }
     groundRing(V(pos.x, .02, pos.z), '#ffb35a', 2.6 * big, .5);
     flashLight(pos.clone().add(V(0, .4, 0)), '#ffa040', 10 * big, 500);
@@ -194,18 +194,140 @@ window.BATTLE = (() => {
       b.scale.set(w, h, dd); b.position.set(Math.cos(a) * d, h / 2, Math.sin(a) * d); b.rotation.y = rnd(0, TAU); b.castShadow = d < 16; scene.add(b);
       if (Math.random() < .3) { const l = sprite({ pos: V(b.position.x, h + .3, b.position.z), size: .5, life: 1e9, color: Math.random() < .5 ? '#ff3b3b' : '#ffd23f' }); }
     }
-    // rocks and rubble near the pad
-    const rockM = new THREE.MeshStandardMaterial({ map: loader.load('tex/concretep_a.jpg', t => (t.encoding = THREE.sRGBEncoding)), roughness: .95, color: 0x8a7e80, flatShading: true });
-    for (let i = 0; i < 26; i++) {
-      const g = new THREE.DodecahedronGeometry(rnd(.15, .6), 0), p = g.attributes.position;
-      for (let k = 0; k < p.count; k++) p.setXYZ(k, p.getX(k) * rnd(.7, 1.3), p.getY(k) * rnd(.5, 1), p.getZ(k) * rnd(.7, 1.3));
-      g.computeVertexNormals();
-      const m = new THREE.Mesh(g, rockM), a = rnd(0, TAU), d = rnd(4, 10);
-      m.position.set(Math.cos(a) * d, .05, Math.sin(a) * d * .8 - (Math.sin(a) > 0 ? 0 : 1)); m.rotation.set(rnd(0, 3), rnd(0, 3), rnd(0, 3)); m.castShadow = m.receiveShadow = true; scene.add(m);
-    }
+    // heaps of crates and containers round the pad (behind it and off to the sides: the cameras look across it from the front)
+    heaps();
     // floating embers
     tickers.add(dt => { if (Math.random() < dt * 6) sprite({ pos: V(rnd(-8, 8), rnd(0, .5), rnd(-6, 3)), vel: V(rnd(-.2, .2), rnd(.3, .8), rnd(-.2, .2)), size: .04, size1: .02, life: rnd(2, 4), color: '#ffb060', tex: TEX.spark, fadeIn: .2 }); });
     return true;
+  }
+
+  // ---- heaps of boxes, after ex-online's generated towns (shared/mapgen/heaps.ts HEAP_BOX, client/src/cityview.ts heapWall):
+  // 26 / 27 a dark wooden crate (long / nearly a cube; half an XS high): a frame round each side, boards, a post between
+  // its halves and a brace across each, its top in squares crossed corner to corner; 28 a pale freight container and 35 a
+  // small one in a dull paint (a quarter of an XS): ribbed sides, posts and rails, doors with locking bars on one end,
+  // rust run down the pale one; 29 a great plain pale box an XS could stand on, a band round its top. The detail is drawn
+  // in the shader in metres on each face; a dark gap between the boxes, grime low on each.
+  const M_PER = 18;   // metres per scene unit (an XS is about 18 m)
+  const HEAP_BOX = { 26: [18, 9, 9], 27: [11, 11, 9], 28: [4.5, 4.5, 4.5], 29: [32, 16, 14], 35: [4.5, 4.5, 4.5] };
+  const HEAP_PAINT = {
+    26: { colors: ['#7b8279', '#757b74', '#80847a'], tone: [.92, 1.06] }, 27: { colors: ['#7b8279', '#757b74', '#80847a'], tone: [.92, 1.06] },
+    28: { colors: ['#c2bba1', '#bdb59b', '#c6c0a8'], tone: [.95, 1.04] }, 29: { colors: ['#cbbfb4', '#c7bcb2'], tone: [.97, 1.03] },
+    35: { colors: ['#8c7f5c', '#857a58', '#7e7253', '#6c5642', '#4c5762', '#6b6a63'], tone: [.9, 1.05] },
+  };
+  function heapMaterial(look) {
+    const kind = look === 26 || look === 27 ? 1 : look === 28 || look === 35 ? 2 : 3;
+    const mat = new THREE.MeshStandardMaterial({ color: 0xb4b4b4, roughness: kind === 1 ? .85 : kind === 2 ? .6 : .8, metalness: kind === 2 ? .3 : .05 });
+    mat.extensions = { derivatives: true };
+    mat.customProgramCacheKey = () => 'heap' + look;
+    mat.onBeforeCompile = sh => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec3 aR; attribute vec3 aD; attribute vec3 aN; attribute vec4 aC; varying vec3 vHR; varying vec3 vHD; varying vec3 vHN; varying vec4 vHC;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvHR = aR; vHD = aD; vHN = aN; vHC = aC;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+        #define HK ${kind}
+        #define HRUST ${look === 28 ? '1.0' : '0.0'}
+        varying vec3 vHR; varying vec3 vHD; varying vec3 vHN; varying vec4 vHC;
+        float hH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float hL(float d, float w, float px) { return 1.0 - smoothstep(w, w + px + 0.02, abs(d)); }`).replace('#include <color_fragment>', `#include <color_fragment>
+        diffuseColor.rgb = vHC.rgb;
+        bool top = abs(vHN.y) > 0.5, endF = !top && abs(vHN.x) > 0.5;
+        vec2 uv = top ? vHR.xz : vec2(endF ? vHR.z : vHR.x, vHR.y), sz = top ? vHD.xz : vec2(endF ? vHD.z : vHD.x, vHD.y), m = uv * sz;
+        float px = fwidth(m.x) + fwidth(m.y), fine = 1.0 - smoothstep(0.08, 0.4, px), mid = 1.0 - smoothstep(0.3, 1.6, px);
+        float edge = min(min(m.x, sz.x - m.x), min(m.y, sz.y - m.y));
+        #if HK == 1
+          float wood = 0.0;
+          float frame = step(edge, 0.55);
+          if (!top) {
+            float np = max(1.0, floor(sz.x / sz.y + 0.5)), pw = sz.x / np, pi = min(np - 1.0, floor(m.x / pw)), qx = m.x - pi * pw;
+            float post = hL(min(qx, pw - qx), 0.28, px);
+            float t = mod(pi, 2.0) < 0.5 ? 1.0 - qx / pw : qx / pw;
+            float brace = hL((m.y / sz.y - t) * min(pw, sz.y) * 0.75, 0.3, px);
+            wood = max(frame, max(post, brace));
+            diffuseColor.rgb *= mix(1.0, (0.93 + 0.07 * hH(vec2(floor(qx / 0.9) + pi * 17.0, vHC.a * 91.0))) * (1.0 - 0.18 * hL(fract(qx / 0.9 + 0.5) - 0.5, 0.02, px / 0.9)), fine);
+            diffuseColor.rgb *= 0.86 + 0.14 * smoothstep(0.0, 2.5, m.y);
+          } else {
+            bool lx = sz.x >= sz.y; float L = lx ? sz.x : sz.y, S = lx ? sz.y : sz.x, a = lx ? m.x : m.y, b = lx ? m.y : m.x;
+            float np = max(1.0, floor(L / S + 0.5)), pw = L / np, qa = a - min(np - 1.0, floor(a / pw)) * pw;
+            float x1 = hL((b / S - qa / pw) * S * 0.7, 0.3, px), x2 = hL((b / S - 1.0 + qa / pw) * S * 0.7, 0.3, px);
+            wood = max(frame, max(max(x1, x2), hL(min(qa, pw - qa), 0.28, px)));
+          }
+          float dark = hL(edge - 0.55, 0.05, px) * fine;
+          diffuseColor.rgb *= 1.0 + mid * (0.24 * wood - 0.35 * dark);
+        #elif HK == 2
+          if (top) diffuseColor.rgb *= 1.05;
+          else if (endF && vHN.x > 0.0) {
+            float bars = 0.0, panel = fract(m.x / sz.x * 2.0);
+            for (int i = 0; i < 4; i++) bars = max(bars, hL(m.x - sz.x * (0.14 + 0.24 * float(i)), 0.035, px));
+            diffuseColor.rgb *= mix(1.0, 0.86 + 0.14 * smoothstep(0.0, 0.25, fract(m.x / (sz.x / 10.0))), fine);
+            diffuseColor.rgb *= 1.0 - mid * (0.6 * hL(m.x - sz.x * 0.5, 0.05, px) + 0.35 * bars);
+            diffuseColor.rgb *= 1.0 - 0.25 * mid * max(hL(panel, 0.015, px / sz.x * 2.0), hL(panel - 1.0, 0.015, px / sz.x * 2.0));
+          } else if (!endF) {
+            float rib = fract(m.x / (sz.x / 14.0));
+            diffuseColor.rgb *= mix(0.94, 0.72 + 0.32 * smoothstep(0.0, 0.5, rib) * (1.0 - smoothstep(0.5, 1.0, rib)) + 0.04, 1.0 - smoothstep(0.15, 0.9, px));
+          }
+          if (!top) {
+            diffuseColor.rgb *= 1.0 - mid * 0.18 * max(hL(min(m.x, sz.x - m.x), 0.16, px), hL(min(m.y, sz.y - m.y), 0.14, px));
+            float col = floor(m.x / 0.35), run = hH(vec2(col, vHC.a * 13.0)), drip = step(0.62, hH(vec2(col * 1.7, vHC.a * 7.0)));
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.25, 0.16), HRUST * 0.45 * mid * drip * (1.0 - smoothstep(0.0, (0.15 + 0.6 * run) * sz.y, sz.y - m.y)));
+            diffuseColor.rgb *= 0.88 + 0.12 * smoothstep(0.0, 1.2, m.y);
+            float foot = endF ? step(m.y, sz.y * 0.08) * step(sz.x * 0.09, m.x) * step(m.x, sz.x * 0.91) : 0.0;
+            diffuseColor.rgb *= 1.0 - 0.85 * foot;
+          }
+        #else
+          if (top) diffuseColor.rgb *= 1.07;
+          else {
+            diffuseColor.rgb *= 0.86 + 0.14 * smoothstep(0.0, 2.0, m.y);
+            float b = sz.y - m.y;
+            diffuseColor.rgb *= 1.0 + 0.07 * step(b, 1.1) - mid * 0.3 * hL(b - 1.1, 0.06, px);
+          }
+          diffuseColor.rgb *= 1.0 - mid * 0.15 * hL(edge, 0.12, px);
+        #endif
+        diffuseColor.rgb *= 1.0 - 0.5 * hL(edge, 0.06, px) * mid;`);
+    };
+    return mat;
+  }
+  function heaps() {
+    const buf = {};
+    // one box of a kind, its middle at (cx, cz), its foot at y0, turned rot; its four ways at random for the containers
+    const box = (look, cx, cz, y0, rot) => {
+      const [L, Wd, Hh] = HEAP_BOX[look].map(v => v / M_PER), b = buf[look] || (buf[look] = { pos: [], nor: [], aR: [], aD: [], aN: [], aC: [] });
+      if (look === 28 || look === 35) rot += Math.floor(Math.random() * 4) * Math.PI / 2;
+      const c = Math.cos(rot), s = Math.sin(rot), hl = L / 2, hw = Wd / 2, pal = HEAP_PAINT[look], seed = Math.random();
+      const k = new THREE.Color(pal.colors[Math.floor(seed * pal.colors.length)]).multiplyScalar(pal.tone[0] + (pal.tone[1] - pal.tone[0]) * Math.random()).convertSRGBToLinear();
+      const F = [[[1, 0, 0], [[hl, 0, hw], [hl, Hh, hw], [hl, Hh, -hw], [hl, 0, -hw]]], [[-1, 0, 0], [[-hl, 0, -hw], [-hl, Hh, -hw], [-hl, Hh, hw], [-hl, 0, hw]]],
+        [[0, 0, 1], [[-hl, 0, hw], [-hl, Hh, hw], [hl, Hh, hw], [hl, 0, hw]]], [[0, 0, -1], [[hl, 0, -hw], [hl, Hh, -hw], [-hl, Hh, -hw], [-hl, 0, -hw]]],
+        [[0, 1, 0], [[-hl, Hh, hw], [-hl, Hh, -hw], [hl, Hh, -hw], [hl, Hh, hw]]]];
+      for (const [n, v] of F) for (const i of [0, 2, 1, 0, 3, 2]) {
+        const [x, y, z] = v[i];
+        b.pos.push(cx + x * c + z * s, y0 + y, cz - x * s + z * c); b.nor.push(n[0] * c + n[2] * s, n[1], -n[0] * s + n[2] * c);
+        b.aR.push(x / L + .5, y / Hh, z / Wd + .5); b.aD.push(L * M_PER, Hh * M_PER, Wd * M_PER); b.aN.push(...n); b.aC.push(k.r, k.g, k.b, seed);
+      }
+      return Hh;
+    };
+    const U = l => HEAP_BOX[l].map(v => v / M_PER);
+    const [cL, cW, cH] = U(26), sC = U(35)[0], pC = U(28)[0], [gL, gW, gH] = U(29), [qL] = U(27);
+    // the back: a long wall of crates, two high in places, a column of containers at each end
+    const zb = -3.4;
+    for (let i = -4; i < 4; i++) { const x = (i + .5) * (cL + .01); box(26, x, zb, 0, 0); if (Math.random() < .45) box(26, x + rnd(-.03, .03), zb, cH, 0); }
+    for (const sx of [-1, 1]) for (let h = 0; h < 4; h++) box(35, sx * (4 * (cL + .01) + sC / 2 + .02), zb, h * sC, 0);
+    // behind it: a great box with small containers and pale ones up on it
+    box(29, -2.2, zb - 1.6, 0, .08);
+    for (let i = 0; i < 3; i++) box(i === 1 ? 28 : 35, -2.2 - gL / 3 + i * gL / 3, zb - 1.6 + rnd(-.1, .1), gH, .08);
+    box(29, 3.1, zb - 2.4, 0, -.12);
+    // the sides: containers heaped in steps toward the pad, and nearly-cube crates
+    for (const sx of [-1, 1]) {
+      const x0 = sx * 3.6;
+      for (let step = 0; step < 4; step++) for (let row = 0; row < 3; row++) for (let h = 0; h <= step; h++)
+        box(35, x0 + sx * step * (sC + .005), -1.6 + row * (sC + .005), h * sC, 0);
+      box(27, sx * 5.1, -2.6, 0, rnd(-.2, .2)); box(27, sx * 5.0, -2.6 - qL - .05, 0, rnd(-.2, .2));
+      box(28, sx * 3.15, -2.5, 0, rnd(0, 1)); box(28, sx * 3.15, -2.5, pC, rnd(0, 1));
+    }
+    for (const [look, b] of Object.entries(buf)) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(b.nor, 3));
+      g.setAttribute('aR', new THREE.Float32BufferAttribute(b.aR, 3)); g.setAttribute('aD', new THREE.Float32BufferAttribute(b.aD, 3));
+      g.setAttribute('aN', new THREE.Float32BufferAttribute(b.aN, 3)); g.setAttribute('aC', new THREE.Float32BufferAttribute(b.aC, 4));
+      const m = new THREE.Mesh(g, heapMaterial(+look)); m.castShadow = m.receiveShadow = true; scene.add(m);
+    }
   }
   function resize() { if (!R) return; const w = innerWidth, h = innerHeight; R.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); cam.fov = cam.fov; }
   function frame(now) {
@@ -223,8 +345,8 @@ window.BATTLE = (() => {
   // ---------- HUD
   const statBox = (s, side) => `<div class="bStats">${[['索敵', 's'], ['攻撃', 'a'], ['防御', 'd']].map(([n, k]) => `<span data-st="${side}${k}"><i>${n}</i><b>${s[k]}</b></span>`).join('')}</div>`;
   function hudHTML(sp) {
-    return `<div class="bPlate me"><img src="${sp.me.face}" alt=""><div><small>${sp.me.label}</small><b>${sp.me.name}</b>${statBox(sp.me.st, 'me')}<em>${sp.me.weapon}</em></div></div>
-      <div class="bPlate cpu"><img src="${sp.cpu.face}" alt=""><div><small>${sp.cpu.label}</small><b>${sp.cpu.name}</b>${statBox(sp.cpu.st, 'cpu')}<em>${sp.cpu.weapon}</em></div></div>
+    return `<div class="bPlate me"><img src="${sp.me.face}" alt=""><div><small>${sp.me.label}</small>${sp.me.rankName ? FX.rank(sp.me.rank, sp.me.rankName) : ''}<b>${sp.me.name}</b>${statBox(sp.me.st, 'me')}<em>${sp.me.weapon}</em></div></div>
+      <div class="bPlate cpu"><img src="${sp.cpu.face}" alt=""><div><small>${sp.cpu.label}</small>${sp.cpu.rankName ? FX.rank(sp.cpu.rank, sp.cpu.rankName) : ''}<b>${sp.cpu.name}</b>${statBox(sp.cpu.st, 'cpu')}<em>${sp.cpu.weapon}</em></div></div>
       <div class="bRound">${sp.title}</div>
       <button type="button" class="bSkip">スキップ ▶▶</button><div class="bTap" hidden>タップで次へ</div>`;
   }
@@ -236,6 +358,9 @@ window.BATTLE = (() => {
     overlay = document.createElement('div'); overlay.className = 'battleOverlay';
     hud = document.createElement('div'); hud.className = 'bHud'; hud.innerHTML = hudHTML(sp);
     overlay.append(canvas, hud); document.body.append(overlay);
+    // the page's sound control, over the skip button while the battle runs
+    const vol = document.querySelector('.volCtl'), volHome = vol && vol.parentNode, volNext = vol && vol.nextSibling;
+    if (vol) hud.append(vol);
     timeScale = 1; skipping = false; clock = 0; timers.length = 0; cam.fov = 42;
     resize(); addEventListener('resize', resize);
     const skipBtn = hud.querySelector('.bSkip');
@@ -254,6 +379,12 @@ window.BATTLE = (() => {
     const pose = { me: { aim: 0, aimL: 0, lean: 0, twist: 0, crouch: 0, stride: 0, kneel: 0 }, cpu: { aim: 0, aimL: 0, lean: 0, twist: 0, crouch: 0, stride: 0, kneel: 0 } };
     const idle = (dt, t) => { for (const k of ['me', 'cpu']) { const p = pose[k], r = A[k]; if (r.dead) continue; r.pose({ ...p, crouch: p.crouch + .05 + Math.sin(t * 2.2 + (k === 'me' ? 0 : 1.3)) * .03 }); } };
     tickers.add(idle);
+    // hover legs: blue-white flames from the jets on the shins and feet, a little dust under them
+    const jw = new THREE.Vector3(), jd = new THREE.Vector3(), jq = new THREE.Quaternion();
+    tickers.add(dt => { for (const k of ['me', 'cpu']) { const r = A[k]; if (!r.jets || !r.jets.length || r.dead) continue; r.root.updateMatrixWorld(true);
+      for (const j of r.jets) { j.getWorldPosition(jw); j.getWorldQuaternion(jq); jd.set(0, -1, 0).applyQuaternion(jq);
+        sprite({ pos: jw, vel: jd.clone().multiplyScalar(1.6), size: .07, size1: .015, life: .12, color: '#bfe8ff' }); }
+      if (Math.random() < dt * 10 && r.root.position.y < .05) sprite({ pos: r.root.position.clone().add(V(rnd(-.15, .15), .02, rnd(-.15, .15))), vel: V(rnd(-.6, .6), .1, rnd(-.6, .6)), size: .1, size1: .4, life: .6, color: '#8a7a6a', normal: true, alpha: .35, tex: TEX.smoke }); } });
     const other = k => k === 'me' ? 'cpu' : 'me';
     const facing = k => k === 'me' ? 1 : -1;
     const chest = k => A[k].root.position.clone().add(V(0, .62, 0));
@@ -361,13 +492,13 @@ window.BATTLE = (() => {
       const tgt = chest(t), f = facing(k);
       if (hit) {
         timeScale = base() * .2; // hit stop
-        A[t].flash(1.1, '#ffd8a0');
+        A[t].flash(.5, '#ffb070');
         explosion(tgt.clone().add(V(-f * .2, 0, 0)), kind === 'shell' || kind === 'missile' ? 1.15 : .85);
         SFX.play(kind === 'sword' ? 'saberhit_1' : 'explosion_1', { vol: 1 }); SFX.duck(.1, 1.5);
         FX.flash('#fff', 220, .55); FX.shake(14, 450);
         FX.stamp('HIT!!', { cls: k === 'me' ? 'gold' : 'red', sub: label, ms: 900 });
         await wait(70); timeScale = base();
-        tween(500, e => { A[t].flash(1.1 * (1 - e)); pose[t].lean = .45 * Math.sin(e * Math.PI) * (1 - e * .5); pose[t].crouch = .6 * Math.sin(e * Math.PI); pose[t].stride = -.35 * Math.sin(e * Math.PI); A[t].root.position.x += f * .004; });
+        tween(500, e => { A[t].flash(.5 * (1 - e)); pose[t].lean = .45 * Math.sin(e * Math.PI) * (1 - e * .5); pose[t].crouch = .6 * Math.sin(e * Math.PI); pose[t].stride = -.35 * Math.sin(e * Math.PI); A[t].root.position.x += f * .004; });
         await wait(600);
       } else {
         const sp2 = A[t].root.position.clone().add(V(-f * .55, .6, 0));
@@ -396,7 +527,7 @@ window.BATTLE = (() => {
       const L = A[loser], lp = L.root.position.clone();
       await camTo(V(lp.x + facing(loser) * -1.7, 1.05, 2.0), lp.clone().add(V(0, .5, 0)), 400);
       timeScale = base() * .45;
-      for (let i = 0; i < 4; i++) { explosion(lp.clone().add(V(rnd(-.2, .2), rnd(.3, .9), rnd(-.2, .2))), .55); SFX.play('explosion_2', { vol: .7, rate: rnd(.9, 1.2) }); L.flash(1.2, '#ffb060'); await wait(170); }
+      for (let i = 0; i < 4; i++) { explosion(lp.clone().add(V(rnd(-.2, .2), rnd(.3, .9), rnd(-.2, .2))), .55); SFX.play('explosion_2', { vol: .7, rate: rnd(.9, 1.2) }); L.flash(.55, '#ff9a50'); await wait(170); }
       SFX.play('destroyed_1', { vol: 1 }); SFX.duck(.05, 3);
       FX.flash('#ffe9c0', 500, .9); FX.shake(26, 900);
       explosion(lp.clone().add(V(0, .55, 0)), 2.1);
@@ -406,7 +537,7 @@ window.BATTLE = (() => {
       const hw = new THREE.Vector3(); head.getWorldPosition(hw); scene.attach(head); L.headGone = true;
       const fall = dt => { if (head.position.y > .05) { hv.y -= 9.8 * dt; head.position.addScaledVector(hv, dt); head.rotation.x += hs.x * dt; head.rotation.y += hs.y * dt; sprite({ pos: head.position, size: .2, size1: .5, life: .5, color: '#3a3036', normal: true, alpha: .6, tex: TEX.smoke }); } else if (!fall.done) { fall.done = true; head.position.y = .05; sparksAt(head.position.clone(), '#ffb040', 12); SFX.play('impact_2', { vol: .6 }); } };
       tickers.add(fall);
-      const smoke = dt => { if (Math.random() < dt * 30) sprite({ pos: lp.clone().add(V(rnd(-.25, .25), rnd(.3, .6), rnd(-.25, .25))), vel: V(rnd(-.1, .1), rnd(.6, 1.2), rnd(-.1, .1)), size: .3, size1: 1.4, life: 2.2, color: '#1e1a1e', normal: true, alpha: .6, tex: TEX.smoke, fadeIn: .1 }); if (Math.random() < dt * 8) sprite({ pos: lp.clone().add(V(rnd(-.2, .2), rnd(.2, .7), rnd(-.2, .2))), vel: V(0, rnd(.3, .8), 0), size: .2, size1: .5, life: .5, color: '#ff8a2a' }); };
+      const smoke = dt => { if (Math.random() < dt * 14) sprite({ pos: lp.clone().add(V(rnd(-.25, .25), rnd(.3, .6), rnd(-.25, .25))), vel: V(rnd(-.1, .1), rnd(.6, 1.2), rnd(-.1, .1)), size: .25, size1: 1.0, life: 2.0, color: '#141114', normal: true, alpha: .5, tex: TEX.smoke, fadeIn: .1 }); if (Math.random() < dt * 8) sprite({ pos: lp.clone().add(V(rnd(-.2, .2), rnd(.2, .7), rnd(-.2, .2))), vel: V(0, rnd(.3, .8), 0), size: .2, size1: .5, life: .5, color: '#ff8a2a' }); };
       tickers.add(smoke);
       await tween(450, e => L.pose({ crouch: .3 * (1 - e), kneel: e, lean: .35 * e }), ease.out);
       await tween(700, e => { L.pose({ kneel: 1, lean: .35 + .4 * e }); L.body.rotation.x = 1.1 * ease.in(e); L.body.position.y = -.08 * e; });
@@ -446,6 +577,7 @@ window.BATTLE = (() => {
     tickers.add(dt => { if (Math.random() < dt * 6) sprite({ pos: V(rnd(-8, 8), rnd(0, .5), rnd(-6, 3)), vel: V(rnd(-.2, .2), rnd(.3, .8), rnd(-.2, .2)), size: .04, size1: .02, life: rnd(2, 4), color: '#ffb060', tex: TEX.spark, fadeIn: .2 }); });
     for (const k of ['me', 'cpu']) { scene.remove(A[k].root); scene.remove(A[k].headPivot); A[k].dispose(); }
     parts.forEach(p => { if (p.alive && p.max < 1e8) { p.alive = false; p.s.visible = false; } });
+    if (vol && volHome) volHome.insertBefore(vol, volNext);
     overlay.remove();
     return true;
   }
